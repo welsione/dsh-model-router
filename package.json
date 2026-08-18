@@ -1,0 +1,22 @@
+{
+  "name": "dsh-model-router",
+  "type": "module",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Unified ModelID routing for DeepSeek Harness: one logical model id over multiple providers, first-token failover with cooldown, and purpose-based simple/complex task split. Includes a settings-page management panel.",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "license": "MIT"
+}
