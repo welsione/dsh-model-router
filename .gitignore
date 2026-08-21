@@ -1,6 +1,9 @@
 node_modules/
-.DS_Store
+.dsh/
+*.tgz
 *.log
+coverage/
+.DS_Store
 
 # 开发备份文件
 *.bak
