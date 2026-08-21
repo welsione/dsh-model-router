@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.2 (2026-08-21)
+
+- **UI 优化 - 思考级别编辑改为胶囊选择器**：「自定义供应商模型能力」卡片的 `reasoningEfforts` 编辑区从 7 行 checkbox+wire 网格改为**胶囊（chip）选择器**：档位是一排可点胶囊，未选中为幽灵态（描边），选中为品牌色高亮填充；选中的胶囊内嵌可编辑 wire 输入框（点击聚焦修改，blur 保留）。`off` 档位选中时不显示 wire（wire 恒为 null）。视觉紧凑现代，贴合现代设置面板形态。
+- **可访问性**：胶囊是 `role="button"` + `tabIndex` + `aria-pressed` + `onKeyDown`（Enter/Space 切换）；wire 输入框 `onClick/onKeyDown` stopPropagation 避免误触发胶囊切换。
+
 ## 1.3.1 (2026-08-21)
 
 - **修复 - 未保存候选误报「不支持思考级别」**：面板里新加（未保存）的候选此前不显示思考级别档位——因为 `buildEfforts` 只对已保存候选计算档位，未保存的新候选 `efforts[key]` 为空，下拉被禁用并误标「不支持思考级别」，即使该模型在「自定义供应商模型能力」卡片里已声明 reasoningEfforts（如 `volcengine-mian/glm-5.3`）。
