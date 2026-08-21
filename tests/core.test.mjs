@@ -11,6 +11,8 @@ import {
   pickChain,
   rankChainByHealth,
   candidateHealthScore,
+  effortsForCandidate,
+  validateReasoningEffort,
   makeThinkingTagStripper,
   withSanitizedReplayState,
 } from '../lib/core.mjs'
@@ -172,5 +174,45 @@ test('rankChainByHealth: no evidence / disabled input returns original order', (
   const b = cand('o', 'm2')
   assert.deepEqual(rankChainByHealth([a, b], null).map(cooldownKey), [cooldownKey(a), cooldownKey(b)])
   assert.deepEqual(rankChainByHealth([a], new Map()).map(cooldownKey), [cooldownKey(a)]) // 单候选原样
+})
+
+// ------------------------------------------------------------------
+// 思考级别兜底（reasoning-efforts-fallback）
+// ------------------------------------------------------------------
+test('effortsForCandidate: listed model keeps catalog efforts (verified)', () => {
+  const catalog = [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }]
+  const out = effortsForCandidate(catalog, ['low', 'medium', 'high'])
+  assert.deepEqual(out, [
+    { id: 'low', name: 'Low', verified: true },
+    { id: 'high', name: 'High', verified: true },
+  ])
+})
+test('effortsForCandidate: unlisted model falls back to generic efforts (unverified)', () => {
+  const out = effortsForCandidate(null, ['low', 'medium', 'high'])
+  assert.deepEqual(out, [
+    { id: 'low', name: 'low', verified: false },
+    { id: 'medium', name: 'medium', verified: false },
+    { id: 'high', name: 'high', verified: false },
+  ])
+})
+test('effortsForCandidate: empty catalog treated as unlisted → fallback; empty fallback yields nothing', () => {
+  // 空目录数组 = 适配器未暴露可选档位 → 视同未标注，走兜底
+  assert.deepEqual(effortsForCandidate([], ['low']), [{ id: 'low', name: 'low', verified: false }])
+  assert.deepEqual(effortsForCandidate(null, []), [])
+  assert.deepEqual(effortsForCandidate(undefined, undefined), [])
+})
+test('validateReasoningEffort: listed model enforces catalog pool', () => {
+  const catalog = [{ id: 'low' }, { id: 'high' }]
+  assert.equal(validateReasoningEffort('low', catalog, ['low', 'medium', 'high']), null)
+  assert.ok(validateReasoningEffort('max', catalog, ['low', 'medium', 'high']).includes('不在该模型目录支持的档位'))
+})
+test('validateReasoningEffort: unlisted model allows fallback pool', () => {
+  assert.equal(validateReasoningEffort('high', null, ['low', 'medium', 'high']), null)
+  assert.ok(validateReasoningEffort('max', null, ['low', 'medium', 'high']).includes('不在该模型兜底档位'))
+})
+test('validateReasoningEffort: empty value passes; empty fallback rejects all', () => {
+  assert.equal(validateReasoningEffort('', null, ['low']), null)
+  assert.equal(validateReasoningEffort(undefined, null, ['low']), null)
+  assert.ok(validateReasoningEffort('low', null, []).includes('未配置兜底档位'))
 })
 

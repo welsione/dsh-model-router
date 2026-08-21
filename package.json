@@ -1,7 +1,7 @@
 {
   "name": "dsh-model-router",
-  "version": "1.1.0",
-  "description": "Unified ModelID routing for DeepSeek Harness: one logical model id over multiple providers, first-token failover with cooldown, health-aware ranking, purpose-based simple/complex task split, per-tier reasoning effort, and a settings-page management panel.",
+  "version": "1.3.0",
+  "description": "Unified ModelID routing for DeepSeek Harness: one logical model id over multiple providers, first-token failover with cooldown, health-aware ranking, fallback reasoning efforts, purpose-based simple/complex task split, per-tier reasoning effort, and a settings-page management panel.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {

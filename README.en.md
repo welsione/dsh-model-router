@@ -11,7 +11,7 @@ Name several `provider/model` candidates under a single logical **ModelID**; cal
 - **First-token failover**: pre-first-token failures (rate limit / quota / auth / network / unknown model / empty response) switch to the next candidate; the failed one enters a cooldown window; per-step switch count is capped.
 - **Health-aware ranking**: each candidate keeps a sliding-window success/failure count; stable successes move up, frequent failures move down (per-candidate ✓/✗ chips in the panel). Toggle off in one click.
 - **Three tiers** (Claude Haiku / Sonnet / Opus style): `tier1` light (compaction / session title), `tier2` standard (main chat), `tier3` powerful (heavy tasks); auto-selected by `purpose`, downgrades when a slot is empty; per-session manual tier (persisted).
-- **Reasoning effort**: each candidate may set `reasoningEffort` (`off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`); validated against the model catalog on save.
+- **Reasoning effort**: each candidate may set `reasoningEffort` (`off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`). Saving runs a real capability precheck (`resolveCallConfig`): only catalog-verified or actually-supported efforts are accepted; unsupported ones are rejected at save time with a clear error instead of failing at runtime. Unlisted candidates get a default `low/medium/high` candidate set (`reasoningEffortsFallback` is configurable), and the panel shows only efforts the host actually accepts.
 - **Panel & live status**: Settings → 模型路由 admin card + live routing status in the chat input toolbar.
 - **Session safety**: registers a custom session event type (sessions containing route events resume fine); sanitizes historical `replayState` across provider/model switches (prevents `INVALID_REPLAY_STATE`); strips thinking wrapper tags at the stream level (supports tags split across chunks).
 
@@ -61,6 +61,7 @@ model-router:
 | maxSwitchesPerStep | 3 | max candidate switches per step (1-10) |
 | healthRanking | true | health-aware ranking: reorder chains by sliding-window success/failure |
 | healthWindowSize | 8 | sliding-window size per candidate (3-30) |
+| reasoningEffortsFallback | ["low","medium","high"] | reasoning-effort levels offered for candidates whose catalog does not declare reasoning (values pass through unverified; default = most common models.dev levels, e.g. ["none","minimal","low","medium","high","xhigh","max"], set [] to disable) |
 | routes | {} | ModelID → { tier1/2/3: [candidate] } |
 | manualTiers | {} | sessionId → manual tier (persisted) |
 
@@ -72,6 +73,15 @@ Panel API (same-origin `webServer`):
 | POST | `/api/model-router/save` | save config (validates model existence + effort) |
 | POST | `/api/model-router/cooldowns/clear` | clear all cooldowns |
 | POST | `/api/model-router/tier` | set / clear session manual tier |
+| GET | `/api/model-router/model-capabilities` | read host `llm-pi-ai` provider/models capabilities (reasoningEfforts/contextWindow/maxTokens) |
+| POST | `/api/model-router/model-capabilities` | write one provider/model's capabilities back to `llm-pi-ai` (deep-merge, hot reload) |
+
+### Model capabilities (writes back to host `llm-pi-ai`, custom providers only)
+
+The panel's "Custom provider model capabilities" card lists models of **custom (hand-declared) providers** in the host `llm-pi-ai` section. You can edit `reasoningEfforts` (levels + wire values), `contextWindow`, and `maxTokens` per model and save. The plugin deep-merges the change back into the `llm-pi-ai` settings namespace via the global `ctx.settings` (only the target provider/model's fields change), and `llm-pi-ai`'s onChange hot-reloads the adapter — **effective without a restart**.
+
+- **Custom providers only**: editing is restricted to providers where `ctx.llm.listConfigurableProviders()` reports `declared === true` (gateways/self-hosted endpoints pi-ai ships nothing about). Built-in catalog providers are filtered from GET and rejected on POST (403) — their capabilities are managed by the host model catalog.
+- Typical use: a hand-declared model such as `volcengine-mian/deepseek-v4-flash` (settings has only `id/name`) declares no `reasoningEfforts`, so the host pi-ai marks it non-reasoning (`reasoning: false`) and rejects every effort. Declare levels (e.g. `off`/`low`/`medium`/`high`) in the card and save; the model becomes immediately configurable for reasoning effort.
 
 ## Permissions & data
 

@@ -13,7 +13,7 @@ DeepSeek Harness (DSH) 统一模型路由插件 —— 一个逻辑 ModelID 对�
 - **自动故障转移**：主候选首 token 前失败（限流 / 配额 / 认证 / 网络 / 模型不存在 / 空响应）自动切下一候选；失败候选进入冷却期（可配置时长），每步切换次数受限。
 - **健康度择优**：每个候选维护滑动窗口内的成功 / 失败计数，稳定成功的候选自动提前、频繁失败的候选自动后移（面板可见每候选的 ✓/✗ 健康标）——比纯固定顺序更智能，可一键关闭。
 - **三档分级**（对标 Claude Haiku / Sonnet / Opus）：`tier1` 轻量（压缩 / 标题）· `tier2` 标准（主对话）· `tier3` 强大（重任务）；按 `purpose` 自动选档，选中档为空时逐级降档；支持会话级手动档位（持久化）。
-- **思考级别**：每个候选可配 `reasoningEffort`（`off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`），面板可配置，保存时校验模型真实支持。
+- **思考级别**：每个候选可配 `reasoningEffort`（`off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`），面板可配置；保存时用实际请求预检（`resolveCallConfig`），目录已标注或实测可用的档位才允许保存，不支持的档位在保存时即明确报错（不再运行时才失败）。目录未标注的候选默认提供 `low/medium/high` 候选集（`reasoningEffortsFallback` 可自定义），面板按预检结果只展示宿主真正接受的档位。
 - **管理面板**：DSH 设置页内置「模型路由」卡片 + 对话窗口输入工具行的实时路由状态；每个统一 ID 展示请求数 / 切换数 / 切换率统计与每候选健康标。
 - **会话兼容**：注册自定义会话事件类型（含路由事件的会话可恢复）；跨 provider / 模型切换自动清洗历史 `replayState`，避免 `INVALID_REPLAY_STATE` 污染；流级剥离思考包裹标签（`<thinking>` 等，支持跨 chunk 拆散）。
 
@@ -74,10 +74,18 @@ model-router:
 | maxSwitchesPerStep | 3 | 每个 step 最多切换候选次数（1-10） |
 | healthRanking | true | 健康度择优：按滑动窗口内成功/失败重排候选链（稳定成功提前、频繁失败后移） |
 | healthWindowSize | 8 | 每个候选健康度统计的滑动窗口大小（3-30） |
+| reasoningEffortsFallback | ["low","medium","high"] | 目录未标注推理能力的候选，允许手动选择的思考级别候选集（保存/面板时用实际请求预检 `resolveCallConfig` 过滤，只保留宿主真正接受的档位；默认取 models.dev 最常见档位，可自定义如 ["none","minimal","low","medium","high","xhigh","max"]，设 [] 关闭兜底） |
 | routes | {} | 统一 ModelID → { tier1/2/3: [候选] } |
 | manualTiers | {} | sessionId → 手动档位（面板写入，跨重启保留） |
 
 每个候选：`provider`（必填）、`model`（必填）、`reasoningEffort`（可选，保存时校验模型支持）。
+
+### 模型能力（写回宿主 llm-pi-ai · 仅自定义供应商）
+
+面板「自定义供应商模型能力」卡片列出宿主 `llm-pi-ai` 中**自定义（hand-declared）供应商**的模型，可逐模型编辑 `reasoningEfforts`（思考级别档位 + wire 值）、`contextWindow`、`maxTokens` 并保存。插件用全局 `ctx.settings` 深合并写回 `llm-pi-ai` 命名空间（只改目标 provider/model，其余配置保留），llm-pi-ai 的 onChange 热重载 adapter，**无需重启即生效**。
+
+- **仅自定义供应商可写**：只对 `ctx.llm.listConfigurableProviders()` 中 `declared === true`（pi-ai 不内置的 gateway/self-hosted）开放；内置目录供应商被过滤 / 拒绝，其能力由宿主模型目录管理。
+- 典型用途：`volcengine-mian/deepseek-v4-flash` 这类 hand-declared 模型（settings 里只有 `id/name`）不声明 `reasoningEfforts` 时，宿主 pi-ai 判定其不支持推理，任何思考级别都会被拒。在卡片声明档位（如 `off`/`low`/`medium`/`high`）写回后，该模型立即可配思考级别。
 
 面板 API（同源 `webServer`）：
 
@@ -87,6 +95,8 @@ model-router:
 | POST | `/api/model-router/save` | 整段保存（校验模型存在性与思考级别） |
 | POST | `/api/model-router/cooldowns/clear` | 清空全部冷却 |
 | POST | `/api/model-router/tier` | 设置 / 清除会话手动档位 |
+| GET | `/api/model-router/model-capabilities` | 读宿主 `llm-pi-ai` 的 provider/models 能力（reasoningEfforts/contextWindow/maxTokens） |
+| POST | `/api/model-router/model-capabilities` | 写回某 provider/model 的能力（深合并，热重载生效） |
 
 ## Permissions & data / 权限与数据
 
