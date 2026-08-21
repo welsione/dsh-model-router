@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.3.7 (2026-08-21)
+
+- **UI 合规优化（web-design-guidelines）**：
+  - 「+ 添加档位」弹层（思考级别选择器）现支持**点击外部关闭**（document mousedown 监听，点击非 `.dsh-mr-caps-pickwrap` 区域即收起）与 **Escape 关闭**（keydown 监听），符合「弹层/模态需可键盘/外部关闭」规范。
+  - 统计与提示文本（请求数/切换数/切换率等 `.dsh-mr-hint`）补 `font-variant-numeric: tabular-nums`，数字列对齐。
+  - 复核全量 a11y：所有交互元素均有 `:focus-visible` 焦点环（含新 chip/pick/pickitem）；表单输入 `name`/`autocomplete`/`inputMode` 齐全；`transition` 均列出具体属性（无 `transition: all`）；动效尊重 `prefers-reduced-motion`。
+
+## 1.3.6 (2026-08-21)
+
+- **修复 - 路由思考级别下拉只显示部分档位**：用户在「自定义供应商模型能力」卡片配置了全部思考级别档位，但统一模型路由里同一模型的下拉只显示宿主认可的档位（如 anthropic-messages adapter 把 reasoningEfforts 裁剪成 `off/low/medium/high`，xhigh/max 等被丢弃）。
+- **根因**：`resolveEffortsFor` 只用 `ctx.llm.resolveModelInfo` 返回的 `reasoning.efforts`（宿主裁剪后的档位），未合并用户在 llm-pi-ai 配置的 reasoningEfforts。
+- **修复**：新增 `configuredEffortsFor(provider, model)` 读取模型在 llm-pi-ai 配置里的 reasoningEfforts 档位，`resolveEffortsFor` 做「宿主认可 ∪ 用户配置」合并——用户显式配置的档位即使被宿主裁剪也保留在下拉。保存时 `validateSection` 仍会 `resolveCallConfig` 预检，宿主真正不支持的档位保存即拒。
+- **验证**：deepseek-v4-flash 配置 7 档保存后，路由下拉显示默认+Off/Minimal/Low/Medium/High/Xhigh/Max（此前只有 Off/Low/High/Max）✅。
+
+## 1.3.5 (2026-08-21)
+
+- **UI 重构 - 思考级别改为胶囊 + 选择器弹层（tag-input 多选）**：按用户参考的形态重做——`思考级别` 一行排开：`[+ 添加档位 ▾]` 按钮 + 已选档位胶囊 `{low ×} {high ×}`。
+  - **胶囊**：已选档位显示为圆角胶囊（档位名 + × 按钮），点 × 移除；wire 值与档位名相同时不显示输入框（保持 `{low ×}` 简洁），不同时才在胶囊内显示可编辑 wire 输入。
+  - **选择器**：`+ 添加档位` 是按钮（非原生 select），点击弹出自定义列表（`role=listbox`），列出全部档位，已添加项标 ✓ + 高亮（点它 = 移除，即 toggle），未添加项点它 = 添加。
+  - 弹层绝对定位 + z-index、`aria-haspopup`/`aria-expanded`、Escape 可收起。
+- **替代了** 1.3.4 的原生 `<select>` 下拉（已添加项禁用、点标签删除）——交互更直观：胶囊 × 删除 + 列表点选添加/移除。
+
+## 1.3.4 (2026-08-21)
+
+- **修复 - 已选思考级别档位无法取消**：模型能力卡片的思考级别标签此前只能点 × 移除，点标签本身无反应。现标签整体可点击（或按 Enter/Space）移除档位，wire 输入框内点击不触发（stopPropagation）；标签补 `role="button"` + `aria-label` + 焦点态 + hover 反馈。
+- **改进 - 「+ 添加档位」下拉改为 toggle**：下拉里已添加的档位不再禁用（此前是灰色点不动，用户以为没法取消），改为「已添加，选择移除」——选择即移除该档位，选择未添加项即添加，选择后自动重置回「+ 添加/移除档位」。加上点标签 / 点 ×，共三种取消方式。
+- **修复 - 模型能力更新后路由思考级别下拉不刷新**：未保存候选经惰性查询缓存（`extraEfforts`）后，模型能力卡片更新该模型档位并保存时**未清空缓存**，路由下拉仍显示旧档位。现 `saveCapability` 保存成功后清空该候选的 `extraEfforts`/`fetchingEfforts` 缓存，强制重新查询真实能力；已保存候选的 `efforts` 仍随 `load()` 每次刷新，模型能力更新后下拉即时反映新档位。
+- **验证**：点标签移除档位 ✅；从下拉选择已添加项移除 ✅；已保存候选在模型能力加档位保存后，路由下拉即时出现新档位 ✅。
+
+## 1.3.3 (2026-08-21)
+
+- **UI 优化 - 模型能力卡片两行布局**：「自定义供应商模型能力」卡片的每个模型行改为明确两行：第一行 `contextWindow` + `maxTokens` 并排（grid 2 列）；第二行「思考级别」整体一行排开——已选档位标签（`nowrap`，超宽横向滚动）+ 右侧「+ 添加档位」下拉。相比之前 7 个胶囊 flex-wrap 或标签换行，垂直空间大幅压缩。
+- **修复**：`off` 档位（值为 null，语义「支持但不发送 wire」）此前被判定为未启用而过滤；现改为「键存在即已启用」，off 添加后正确显示为无 wire 的标签、下拉标「已添加」。
+
 ## 1.3.2 (2026-08-21)
 
 - **UI 优化 - 思考级别编辑改为胶囊选择器**：「自定义供应商模型能力」卡片的 `reasoningEfforts` 编辑区从 7 行 checkbox+wire 网格改为**胶囊（chip）选择器**：档位是一排可点胶囊，未选中为幽灵态（描边），选中为品牌色高亮填充；选中的胶囊内嵌可编辑 wire 输入框（点击聚焦修改，blur 保留）。`off` 档位选中时不显示 wire（wire 恒为 null）。视觉紧凑现代，贴合现代设置面板形态。
