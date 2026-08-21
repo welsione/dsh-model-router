@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1 (2026-08-21)
+
+- **修复 - 未保存候选误报「不支持思考级别」**：面板里新加（未保存）的候选此前不显示思考级别档位——因为 `buildEfforts` 只对已保存候选计算档位，未保存的新候选 `efforts[key]` 为空，下拉被禁用并误标「不支持思考级别」，即使该模型在「自定义供应商模型能力」卡片里已声明 reasoningEfforts（如 `volcengine-mian/glm-5.3`）。
+- 新增 `GET /api/model-router/efforts?provider=&model=` 单候选档位查询（目录标注 verified=true；未标注用兜底档位逐个 `resolveCallConfig` 实测）。面板 `effortOptions` 惰性查询：未保存候选发起单候选查询，查询中显示「检测中…」（不误报），返回后实时显示真实档位；已保存候选仍走 `state.efforts`。
+- **验证**：面板把未保存候选设为 `volcengine-mian/glm-5.3`，下拉实时显示 `Off/Low/High/Max`（verified），不再「不支持思考级别」。
+
 ## 1.3.0 (2026-08-21)
 
 - **新功能 - 自定义供应商模型能力卡片（写回宿主 llm-pi-ai）**：面板新增「自定义供应商模型能力」卡片，列出宿主 `llm-pi-ai` 中**自定义（hand-declared）供应商**的模型，可逐模型编辑 `reasoningEfforts`（思考级别档位 + wire 值）、`contextWindow`、`maxTokens` 并保存。插件用全局 `ctx.settings` 深合并写回 `llm-pi-ai` 命名空间（只改目标 provider/model，其余配置保留），llm-pi-ai 的 onChange 热重载 adapter——**无需重启即生效**，面板思考级别下拉与路由预检立即反映新能力。
