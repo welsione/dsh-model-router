@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="400" viewBox="0 0 1200 400"
+     role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">dsh-model-router — 统一模型路由</title>
+  <desc id="hero-desc">一个逻辑 ModelID 汇聚多家供应商，pro / normal / lite 三档候选链自动故障转移。</desc>
+
+  <!-- 浅色底 + 细网格 -->
+  <rect width="1200" height="400" rx="28" fill="#FFFFFF" stroke="#E5E8EB" stroke-width="2"/>
+  <g stroke="#F0F2F5" stroke-width="1">
+    <line x1="100" y1="0" x2="100" y2="400"/><line x1="200" y1="0" x2="200" y2="400"/>
+    <line x1="300" y1="0" x2="300" y2="400"/><line x1="500" y1="0" x2="500" y2="400"/>
+    <line x1="600" y1="0" x2="600" y2="400"/><line x1="700" y1="0" x2="700" y2="400"/>
+    <line x1="800" y1="0" x2="800" y2="400"/><line x1="900" y1="0" x2="900" y2="400"/>
+    <line x1="1000" y1="0" x2="1000" y2="400"/><line x1="1100" y1="0" x2="1100" y2="400"/>
+    <line x1="0" y1="80" x2="1200" y2="80"/><line x1="0" y1="160" x2="1200" y2="160"/>
+    <line x1="0" y1="240" x2="1200" y2="240"/><line x1="0" y1="320" x2="1200" y2="320"/>
+  </g>
+
+  <!-- 左：标题块（大标题 + 一句口号 + 少量短标签） -->
+  <text x="64" y="88" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#6E7781">DSH PLUGIN · MODEL ROUTER</text>
+  <text x="64" y="152" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif" font-size="52" font-weight="700" fill="#1B1F24">dsh-model-router</text>
+  <text x="64" y="206" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif" font-size="26" fill="#414A55">一个逻辑 ModelID · 自动故障转移</text>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18">
+    <rect x="64" y="268" width="160" height="38" rx="19" fill="#FAFBFC" stroke="#E5E8EB"/>
+    <text x="144" y="292" text-anchor="middle" fill="#414A55">DSH 0.1.0-rc</text>
+    <rect x="240" y="268" width="86" height="38" rx="19" fill="#FAFBFC" stroke="#E5E8EB"/>
+    <text x="283" y="292" text-anchor="middle" fill="#414A55">MIT</text>
+  </g>
+
+  <!-- 右：真实路由拓扑（ModelID → 三档候选链 + 故障转移） -->
+  <!-- ModelID 输入卡 -->
+  <rect x="660" y="60" width="360" height="56" rx="14" fill="#F5F7FF" stroke="#4D6BFE" stroke-width="2"/>
+  <text x="688" y="94" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="22" font-weight="700" fill="#3A56D0">deepseek-v4-flash</text>
+
+  <!-- 三档候选链：PRO 紫 / NORMAL 蓝 / LITE 绿（对齐插件真实 UI 配色） -->
+  <!-- PRO -->
+  <rect x="660" y="140" width="360" height="60" rx="14" fill="#F5F0FF" stroke="#D8C7FF"/>
+  <circle cx="688" cy="170" r="9" fill="#9457E0"/>
+  <text x="706" y="176" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif" font-size="22" font-weight="600" fill="#9457E0">pro</text>
+  <text x="852" y="176" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#5B6470">volcengine-mian</text>
+  <!-- NORMAL -->
+  <rect x="660" y="216" width="360" height="60" rx="14" fill="#E6F7FF" stroke="#BAE7FF"/>
+  <circle cx="688" cy="246" r="9" fill="#1890FF"/>
+  <text x="706" y="252" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif" font-size="22" font-weight="600" fill="#1890FF">normal</text>
+  <text x="852" y="252" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#5B6470">opencode-go</text>
+  <!-- LITE -->
+  <rect x="660" y="292" width="360" height="60" rx="14" fill="#E6F9F0" stroke="#A5EBC9"/>
+  <circle cx="688" cy="322" r="9" fill="#2AB67B"/>
+  <text x="706" y="328" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif" font-size="22" font-weight="600" fill="#2AB67B">lite</text>
+  <text x="820" y="328" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#5B6470">opencode-go</text>
+
+  <!-- 故障转移图例（机制一句话） -->
+  <text x="660" y="380" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif" font-size="20" fill="#5B6470">✕ 失败 → 自动切换 → ✓ 下一候选</text>
+</svg>
