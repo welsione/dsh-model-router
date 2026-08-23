@@ -1,7 +1,7 @@
 # dsh-model-router
 
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="dsh-model-router: one logical ModelID over multiple providers, pro / normal / lite tier chains with automatic failover">
+  <img src="./assets/readme/hero.svg" width="100%" alt="dsh-model-router: one logical ModelID over multiple providers, plan-based three-tier candidate chains with automatic failover">
 </p>
 
 <p align="center">
@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/Node-%3E%3D22-2AB67B" alt="Node &gt;=22">
 </p>
 
-> One logical **ModelID** backed by multiple providers' equivalent models — first-token failover with cooldown, health-aware ranking, three-tier purpose split, per-candidate reasoning effort. The settings panel **auto-saves every change**.
+> Unified model routing plugin: one logical **ModelID** backed by multiple providers' equivalent models, organized into **plans** (each with three tiers `tier1/2/3`) — first-token failover with cooldown, health-aware ranking, per-candidate reasoning effort; manual per-session tier picking in the chat window, and a settings panel that **auto-saves every change** to routes and model capabilities.
 >
 > 📦 Published on npm: [`@welsione/dsh-model-router`](https://www.npmjs.com/package/@welsione/dsh-model-router)
 
@@ -22,16 +22,27 @@
 dsh plugin --profile web add @welsione/dsh-model-router
 ```
 
+## Screenshots
+
+| Chat window · plan & manual tier picker | Settings panel · route management |
+|---|---|
+| ![Chat tier picker](assets/readme/screenshot-chat-tier-picker.png) | ![Settings route panel](assets/readme/screenshot-settings-panel.png) |
+
+Left: the chat-window "plan · tier" picker — per-plan custom tier names (e.g. 穷鬼套餐: 夯 / NPC / 拉完了), click to **pick a tier manually**, and the current `provider/model + reasoning effort` shown at the bottom.
+Right: the "统一模型路由" settings panel — candidate chains per plan with per-candidate **failure/success counts** (health), reasoning effort, switch stats (280 requests · 9 switches), cooldown and model-capability editing, all auto-saved.
+
 ## Overview
 
 | Capability | One line |
 |---|---|
+| Multi-plan routing | Multiple plans (Route Groups) coexist, each with its own three-tier candidate chain and tier names |
 | Auto failover | Pre-first-token failures (rate limit / quota / auth / network / unknown model / empty response) switch to the next candidate; the failed one enters cooldown |
 | Health-aware ranking | Sliding-window success/failure counts reorder chains — stable successes up, frequent failures down; toggle off in one click |
-| Three tiers | `tier1` light · `tier2` standard · `tier3` powerful, auto-selected by `purpose` with downgrade; per-session manual tier |
+| Three tiers + manual tier | Per-plan `tier1` light · `tier2` standard · `tier3` powerful, auto-selected by `purpose` with downgrade; per-session manual tier in the chat window |
 | Reasoning effort | Per-candidate `reasoningEffort`, prechecked with a real request at save time — only host-accepted levels allowed |
 | Tier names | Per-plan custom tier display names (`routes.<id>.tierNames`), click-to-rename colored capsules, synced to the chat plan menu |
-| Management panel | Built-in 模型路由 card in DSH Settings with auto-save; live routing status in the chat toolbar |
+| Model capability write-back | Edit custom-provider model capabilities (reasoning effort / contextWindow / maxTokens) in the panel, written back to the host `llm-pi-ai`, hot-reloaded |
+| Management panel | Built-in 模型路由 card in DSH Settings with route stats / cooldown / health / capability editing, auto-save; live routing status in the chat toolbar |
 | Session safety | Recoverable route events, automatic `replayState` sanitization across providers |
 
 ## Compatibility

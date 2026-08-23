@@ -1,7 +1,7 @@
 # dsh-model-router
 
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="dsh-model-router：一个逻辑 ModelID 汇聚多家供应商，pro / normal / lite 三档候选链自动故障转移">
+  <img src="./assets/readme/hero.svg" width="100%" alt="dsh-model-router：一个逻辑 ModelID 汇聚多家供应商，按套餐三档候选链自动故障转移">
 </p>
 
 <p align="center">
@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/Node-%3E%3D22-2AB67B" alt="Node &gt;=22">
 </p>
 
-> 一个逻辑 **ModelID** 汇聚多家供应商的同名模型 —— 首 token 前失败自动切换候选（带冷却）、健康度择优、三档分级、每候选思考级别。设置面板**修改自动保存、即时生效**。
+> 统一模型路由插件：一个逻辑 **ModelID** 汇聚多家供应商的同名模型，按**套餐**组织候选链（每套餐三档 `tier1/2/3`）——首 token 前失败自动切换并冷却、健康度择优、每候选思考级别；对话窗口可手动选档，设置面板改路由与模型能力**自动保存、即时生效**。
 >
 > 📦 已发布 npm：[`@welsione/dsh-model-router`](https://www.npmjs.com/package/@welsione/dsh-model-router)
 
@@ -20,16 +20,27 @@
 dsh plugin --profile web add @welsione/dsh-model-router
 ```
 
+## Screenshots / 界面预览
+
+| 对话窗口 · 套餐与手动档位 | 设置面板 · 路由管理 |
+|---|---|
+| ![对话窗口档位选择器](assets/readme/screenshot-chat-tier-picker.png) | ![设置面板路由管理](assets/readme/screenshot-settings-panel.png) |
+
+左：对话窗口「套餐 · 档位」选择器——每套餐独立档位名（如 穷鬼套餐：夯 / NPC / 拉完了），点击即可**手动选档**，底部显示当前命中的 `provider/model + 思考级别`。
+右：设置页「统一模型路由」管理面板——每套餐候选链 + 每候选**失败/成功计数**（健康度）、思考级别、切换统计（280 请求 · 切 9）、冷却与模型能力编辑，修改自动保存。
+
 ## Overview / 简介
 
 | 能力 | 一句话 |
 |---|---|
+| 多套餐路由 | 多个套餐（Route Group）并存，每套餐独立三档候选链与档位名，按需选用 |
 | 自动故障转移 | 主候选首 token 前失败（限流/配额/认证/网络/模型不存在/空响应）自动切下一候选，失败候选进冷却期 |
 | 健康度择优 | 每个候选按滑动窗口内成功/失败计数重排——稳定成功的提前、频繁失败的延后，可一键关闭 |
-| 三档分级 | `tier1` 轻量 · `tier2` 标准 · `tier3` 强大，按 `purpose` 自动选档、档空逐级降档；支持会话级手动档位 |
+| 三档分级 + 手动档位 | 每套餐 `tier1` 轻量 · `tier2` 标准 · `tier3` 强大，按 `purpose` 自动选档、档空逐级降档；对话窗口可**会话级手动选档** |
 | 思考级别 | 每候选可配 `reasoningEffort`，保存时实际请求预检，只允许宿主真正支持的档位 |
 | 档位名称 | 每套餐独立自定义档位显示名（`routes.<id>.tierNames`），彩色胶囊点击即改名，对话窗口同步展示 |
-| 管理面板 | DSH 设置页内置「模型路由」卡片，修改自动保存；对话窗口套餐选择器实时路由状态 |
+| 模型能力写回 | 管理面板可编辑自定义供应商模型能力（思考级别档位/contextWindow/maxTokens）并写回宿主 `llm-pi-ai`，热重载生效 |
+| 管理面板 | DSH 设置页内置「模型路由」卡片，路由统计/冷却/健康度/能力编辑，修改自动保存；对话窗口套餐选择器实时路由状态 |
 | 会话安全 | 会话事件可恢复、跨 provider 自动清洗 `replayState` |
 
 ## Compatibility / 兼容性
