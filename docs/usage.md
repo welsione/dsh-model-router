@@ -4,7 +4,7 @@
 
 ## 快速开始
 
-1. 安装：`dsh plugin --profile web add dsh-model-router`（卸载 `… remove …`）。
+1. 安装：`dsh plugin --profile web add @welsione/dsh-model-router`（卸载 `… remove …`）。
 2. 打开 设置 → 模型路由，添加统一 ModelID（如 `deepseek-v4-flash`），为 tier1/2/3 各配候选（`provider + model` + 可选 `reasoningEffort`）。
 3. **修改自动保存、即时生效**：任何改动去抖 600ms 后自动写入配置，无需点保存按钮；右下角显示保存状态，失败时红色提示。
 4. 或在对话窗口的套餐选择器里选中已配置好的套餐；选中后路由按候选链自动故障转移。

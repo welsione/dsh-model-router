@@ -1,11 +1,9 @@
 # Changelog
 
-## 0.0.2 (2026-08-23)
-
-- **移除 - 流级思考标签剥离逻辑**：`makeThinkingTagStripper`（`lib/core.mjs`）、`lib/index.js` 中 `routeThrough` 对 `text-delta` 的 `stripThinking` 变换、配套单测与 `probe-stream.mjs` 复现脚本全部删除。理由：路由插件的职责是「选路 + 首 token 前故障转移」，输出内容改写（剥离 `<thinking>` 等标签）属于供应商适配层（llm-pi-ai adapter）的职责，不属于本插件。现在 `routeThrough` 对流只做**透传 + 观察**（`sawContent` / `finish` 判定），不再改动任何 chunk 内容；`replayState` 清洗保留（跨 provider 路由必需）。README「会话安全」行同步去掉「流级剥离 `<thinking>` 标签」。
-
 ## 0.0.1 (2026-08-21)
 
+- **改名 - npm 包名改为 `@welsione/dsh-model-router`**：npm 上 `dsh-model-router` 已被其他发布者占用（`thedeveloper256` 的 `@0.6.2`），无法以原名发布。改为 scoped 包 `@welsione/dsh-model-router`（`package.json` 加 `publishConfig.access: public`）。安装/卸载命令同步改为 `dsh plugin --profile web (add|remove) @welsione/dsh-model-router`；`cordis.patch.yml` 的 `name` 字段同步更新（插件内部 `id`/`export const name` 保持 `dsh-model-router` 不变，与 scoped 插件惯例一致，如 `@deepseek-ai/dsh-llm-pi-ai` → `llm-pi-ai`）。
+- **移除 - 流级思考标签剥离逻辑**：`makeThinkingTagStripper`（`lib/core.mjs`）、`lib/index.js` 中 `routeThrough` 对 `text-delta` 的 `stripThinking` 变换、配套单测与 `probe-stream.mjs` 复现脚本全部删除。理由：路由插件的职责是「选路 + 首 token 前故障转移」，输出内容改写（剥离 `<thinking>` 等标签）属于供应商适配层（llm-pi-ai adapter）的职责，不属于本插件。现在 `routeThrough` 对流只做**透传 + 观察**（`sawContent` / `finish` 判定），不再改动任何 chunk 内容；`replayState` 清洗保留（跨 provider 路由必需）。README「会话安全」行同步去掉「流级剥离 `<thinking>` 标签」。
 - **实时自动保存（去掉「保存全部」按钮）**：设置面板的任何修改（档位名称、候选链、全局参数、总开关等）去抖 600ms 后自动写入配置并即时生效，无需手动点保存；面板右下角显示保存状态（「保存中… / 修改自动保存 · 已保存 HH:MM:SS」），失败时红色提示。用「本地草稿 vs 服务端基线」的规范形比对避免保存回写形成循环，保存期间的新修改会在完成后自动补存。
 - **套餐选择菜单宽度按内容自适应**：对话窗口「套餐 · 档位」下拉菜单去掉 `min-width: 280px` 强制宽度，改为 `width: max-content` 贴合内容（保留 max-width 上限防超长套餐名撑爆）。
 - **去除档位名称重复展示**：删除路由卡片顶部的「档位名称」胶囊区，编辑能力合并到各档位区块标题的可编辑胶囊（点击区块标题胶囊就地改名，Enter 提交 / Esc 取消 / 清空恢复默认），档位名每处只出现一次。

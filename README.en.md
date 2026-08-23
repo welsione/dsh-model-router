@@ -15,7 +15,7 @@
 中文说明见 [README.md](README.md)。
 
 ```sh
-dsh plugin --profile web add dsh-model-router
+dsh plugin --profile web add @welsione/dsh-model-router
 ```
 
 ## Overview
@@ -37,8 +37,8 @@ dsh plugin --profile web add dsh-model-router
 ## Install / Uninstall
 
 ```sh
-dsh plugin --profile web add dsh-model-router    # install
-dsh plugin --profile web remove dsh-model-router  # uninstall
+dsh plugin --profile web add @welsione/dsh-model-router    # install
+dsh plugin --profile web remove @welsione/dsh-model-router  # uninstall
 ```
 
 After install, a 模型路由 card appears in Settings; the chat model picker becomes a plan picker with tier switching. See [docs/usage.md](docs/usage.md).

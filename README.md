@@ -13,7 +13,7 @@
 > 一个逻辑 **ModelID** 汇聚多家供应商的同名模型 —— 首 token 前失败自动切换候选（带冷却）、健康度择优、三档分级、每候选思考级别。设置面板**修改自动保存、即时生效**。
 
 ```sh
-dsh plugin --profile web add dsh-model-router
+dsh plugin --profile web add @welsione/dsh-model-router
 ```
 
 ## Overview / 简介
@@ -35,8 +35,8 @@ dsh plugin --profile web add dsh-model-router
 ## Install / Uninstall · 安装 / 卸载
 
 ```sh
-dsh plugin --profile web add dsh-model-router   # 安装
-dsh plugin --profile web remove dsh-model-router  # 卸载
+dsh plugin --profile web add @welsione/dsh-model-router   # 安装
+dsh plugin --profile web remove @welsione/dsh-model-router  # 卸载
 ```
 
 装好后设置页出现「模型路由」卡片；对话窗口模型选择器变为「套餐」选择器（三档切换）。详见 [docs/usage.md](docs/usage.md)。
