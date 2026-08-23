@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/npm/dm/@welsione%2Fdsh-model-router" alt="npm downloads">
   <img src="https://img.shields.io/badge/license-MIT-6E7781" alt="MIT">
   <img src="https://img.shields.io/badge/Node-%3E%3D22-2AB67B" alt="Node &gt;=22">
+  <a href="https://awesome-dsh-plugin.com"><img src="https://awesome-dsh-plugin.com/badge.svg" alt="Awesome DSH Plugin"></a>
 </p>
 
 > Unified model routing plugin: one logical **ModelID** backed by multiple providers' equivalent models, organized into **plans** (each with three tiers `tier1/2/3`) — first-token failover with cooldown, health-aware ranking, per-candidate reasoning effort; manual per-session tier picking in the chat window, and a settings panel that **auto-saves every change** to routes and model capabilities.

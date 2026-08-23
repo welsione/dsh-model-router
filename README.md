@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/npm/dm/@welsione%2Fdsh-model-router" alt="npm downloads">
   <img src="https://img.shields.io/badge/license-MIT-6E7781" alt="MIT">
   <img src="https://img.shields.io/badge/Node-%3E%3D22-2AB67B" alt="Node &gt;=22">
+  <a href="https://awesome-dsh-plugin.com"><img src="https://awesome-dsh-plugin.com/badge.svg" alt="Awesome DSH Plugin"></a>
 </p>
 
 > 统一模型路由插件：一个逻辑 **ModelID** 汇聚多家供应商的同名模型，按**套餐**组织候选链（每套餐三档 `tier1/2/3`）——首 token 前失败自动切换并冷却、健康度择优、每候选思考级别；对话窗口可手动选档，设置面板改路由与模型能力**自动保存、即时生效**。
