@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.2 (2026-08-23)
+
+- **修复 - cordis.patch.yml 的 scoped 包名未加引号导致 YAML 解析失败**：`name: @welsione/dsh-model-router` 中 `@` 是 YAML 锚点字符，patch 解析失败 → `dsh plugin add` 安装后 bundle 层不生效。改为 `name: "@welsione/dsh-model-router"`。已用 dsh-plugin-developer 复验：check 100/100 (A) + 运行级 test 全 PASS。**0.0.1 已从 npm 上的损坏状态被 0.0.2 取代。**
+
 ## 0.0.1 (2026-08-21)
 
 - **改名 - npm 包名改为 `@welsione/dsh-model-router`**：npm 上 `dsh-model-router` 已被其他发布者占用（`thedeveloper256` 的 `@0.6.2`），无法以原名发布。改为 scoped 包 `@welsione/dsh-model-router`（`package.json` 加 `publishConfig.access: public`）。安装/卸载命令同步改为 `dsh plugin --profile web (add|remove) @welsione/dsh-model-router`；`cordis.patch.yml` 的 `name` 字段同步更新（插件内部 `id`/`export const name` 保持 `dsh-model-router` 不变，与 scoped 插件惯例一致，如 `@deepseek-ai/dsh-llm-pi-ai` → `llm-pi-ai`）。
