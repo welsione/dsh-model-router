@@ -13,7 +13,6 @@ import {
   candidateHealthScore,
   effortsForCandidate,
   validateReasoningEffort,
-  makeThinkingTagStripper,
   withSanitizedReplayState,
 } from '../lib/core.mjs'
 
@@ -89,27 +88,6 @@ test('pickChain: direct slot, downgrade, all-empty', () => {
   assert.equal(pickChain(r, 'tier3').slot, 'tier3')
   assert.equal(pickChain(r, 'tier2').slot, 'tier1') // tier2 空 → 降 tier1
   assert.equal(pickChain({ tier1: [], tier2: [], tier3: [] }, 'tier3'), null)
-})
-
-test('makeThinkingTagStripper: strips wrapper tags, keeps inner content', () => {
-  const strip = makeThinkingTagStripper()
-  // 设计语义：只剥包裹标签，不删内容（防止 <response>答案</response> 这类整段包裹被误删）
-  assert.equal(strip('<thinking>思考中</thinking>正文'), '思考中正文')
-  assert.equal(strip('<response>答案</response>'), '答案')
-  assert.equal(strip('<antml:thinking>t</antml:thinking>hello'), 'thello')
-})
-test('makeThinkingTagStripper: tag split across chunks', () => {
-  const strip = makeThinkingTagStripper()
-  assert.equal(strip('前<thinki'), '前')
-  assert.equal(strip('ng>x</thinking>后'), 'x后')
-})
-test('makeThinkingTagStripper: strips bare boundary response', () => {
-  const strip = makeThinkingTagStripper()
-  assert.equal(strip('你好 response！结束'), '你好！结束')
-})
-test('makeThinkingTagStripper: keeps ordinary words with spaces', () => {
-  const strip = makeThinkingTagStripper()
-  assert.equal(strip('请给出 response 说明'), '请给出 response 说明')
 })
 
 test('withSanitizedReplayState: keeps replayState matching current candidate', () => {

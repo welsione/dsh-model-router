@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.2 (2026-08-23)
+
+- **移除 - 流级思考标签剥离逻辑**：`makeThinkingTagStripper`（`lib/core.mjs`）、`lib/index.js` 中 `routeThrough` 对 `text-delta` 的 `stripThinking` 变换、配套单测与 `probe-stream.mjs` 复现脚本全部删除。理由：路由插件的职责是「选路 + 首 token 前故障转移」，输出内容改写（剥离 `<thinking>` 等标签）属于供应商适配层（llm-pi-ai adapter）的职责，不属于本插件。现在 `routeThrough` 对流只做**透传 + 观察**（`sawContent` / `finish` 判定），不再改动任何 chunk 内容；`replayState` 清洗保留（跨 provider 路由必需）。README「会话安全」行同步去掉「流级剥离 `<thinking>` 标签」。
+
 ## 0.0.1 (2026-08-21)
 
 - **实时自动保存（去掉「保存全部」按钮）**：设置面板的任何修改（档位名称、候选链、全局参数、总开关等）去抖 600ms 后自动写入配置并即时生效，无需手动点保存；面板右下角显示保存状态（「保存中… / 修改自动保存 · 已保存 HH:MM:SS」），失败时红色提示。用「本地草稿 vs 服务端基线」的规范形比对避免保存回写形成循环，保存期间的新修改会在完成后自动补存。

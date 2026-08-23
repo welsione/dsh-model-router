@@ -26,7 +26,7 @@ dsh plugin --profile web add dsh-model-router
 | 思考级别 | 每候选可配 `reasoningEffort`，保存时实际请求预检，只允许宿主真正支持的档位 |
 | 档位名称 | 每套餐独立自定义档位显示名（`routes.<id>.tierNames`），彩色胶囊点击即改名，对话窗口同步展示 |
 | 管理面板 | DSH 设置页内置「模型路由」卡片，修改自动保存；对话窗口套餐选择器实时路由状态 |
-| 会话安全 | 会话事件可恢复、跨 provider 自动清洗 `replayState`、流级剥离 `<thinking>` 标签 |
+| 会话安全 | 会话事件可恢复、跨 provider 自动清洗 `replayState` |
 
 ## Compatibility / 兼容性
 

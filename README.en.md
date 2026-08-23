@@ -28,7 +28,7 @@ dsh plugin --profile web add dsh-model-router
 | Reasoning effort | Per-candidate `reasoningEffort`, prechecked with a real request at save time — only host-accepted levels allowed |
 | Tier names | Per-plan custom tier display names (`routes.<id>.tierNames`), click-to-rename colored capsules, synced to the chat plan menu |
 | Management panel | Built-in 模型路由 card in DSH Settings with auto-save; live routing status in the chat toolbar |
-| Session safety | Recoverable route events, automatic `replayState` sanitization across providers, stream-level `<thinking>` tag stripping |
+| Session safety | Recoverable route events, automatic `replayState` sanitization across providers |
 
 ## Compatibility
 
