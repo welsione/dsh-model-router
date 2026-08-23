@@ -6,11 +6,15 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/DSH-0.1.0--rc.8-4D6BFE" alt="DSH 0.1.0-rc.8">
+  <img src="https://img.shields.io/npm/v/@welsione%2Fdsh-model-router" alt="npm version">
+  <img src="https://img.shields.io/npm/dm/@welsione%2Fdsh-model-router" alt="npm downloads">
   <img src="https://img.shields.io/badge/license-MIT-6E7781" alt="MIT">
   <img src="https://img.shields.io/badge/Node-%3E%3D22-2AB67B" alt="Node &gt;=22">
 </p>
 
 > 一个逻辑 **ModelID** 汇聚多家供应商的同名模型 —— 首 token 前失败自动切换候选（带冷却）、健康度择优、三档分级、每候选思考级别。设置面板**修改自动保存、即时生效**。
+>
+> 📦 已发布 npm：[`@welsione/dsh-model-router`](https://www.npmjs.com/package/@welsione/dsh-model-router)
 
 ```sh
 dsh plugin --profile web add @welsione/dsh-model-router
@@ -34,10 +38,14 @@ dsh plugin --profile web add @welsione/dsh-model-router
 
 ## Install / Uninstall · 安装 / 卸载
 
+已发布到 npm（`@welsione/dsh-model-router`）。`dsh plugin add` 会自动从 npm 拉取：
+
 ```sh
 dsh plugin --profile web add @welsione/dsh-model-router   # 安装
 dsh plugin --profile web remove @welsione/dsh-model-router  # 卸载
 ```
+
+> npm 拉不动？可改走 GitHub 源：`dsh plugin --profile web add github:welsione/dsh-model-router`。
 
 装好后设置页出现「模型路由」卡片；对话窗口模型选择器变为「套餐」选择器（三档切换）。详见 [docs/usage.md](docs/usage.md)。
 
@@ -65,6 +73,17 @@ npm test && npm pack --dry-run   # 发布前四连
 ```
 
 纯逻辑 `lib/core.mjs` + 接线 `lib/index.js` + Web UI `lib/client.js`；合规自检与证据见 [docs/self-check.md](docs/self-check.md)。
+
+### 发布新版本（自动发布到 npm）
+
+打 `v<version>` tag 推送后，GitHub Action（[npm-publish.yml](.github/workflows/npm-publish.yml)）会校验 tag 与 `package.json` 版本一致，然后自动 `npm publish`：
+
+```sh
+npm version patch   # 升版本号（patch/minor/major，同步 CHANGELOG）
+git push && git push --tags
+```
+
+发布需要仓库配置 `NPM_TOKEN` secret（npm 账号 `welsione` 的 Automation token）。
 
 ## License & security / 许可证与安全
 
