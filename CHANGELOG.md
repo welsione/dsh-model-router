@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.3 (2026-08-24)
+
+- **修复 - client bundle 加载报错 `loaded without registering`**：`lib/client.js` 里 `window.__ModuleLoader__.load` 的 `id` 原本是短名 `dsh-model-router`，但 DSH web 的 client-modules Loader 以**完整包名**注册/校验 factory（官方 client bundle 均用 `@deepseek-ai/...` 全名），导致 bundle 加载后找不到对应注册 → 启动时报 `Failed to load plugins / loaded without registering "@welsione/dsh-model-router"`。改为 `id: '@welsione/dsh-model-router'` 后正常注册。已用 dsh-plugin-developer 复验：check 93/100 (A) + 运行级 test（打包→安装→层生效→启动冒烟→卸载）全 PASS。
+
 ## 0.0.2 (2026-08-23)
 
 - **修复 - cordis.patch.yml 的 scoped 包名未加引号导致 YAML 解析失败**：`name: @welsione/dsh-model-router` 中 `@` 是 YAML 锚点字符，patch 解析失败 → `dsh plugin add` 安装后 bundle 层不生效。改为 `name: "@welsione/dsh-model-router"`。已用 dsh-plugin-developer 复验：check 100/100 (A) + 运行级 test 全 PASS。**0.0.1 已从 npm 上的损坏状态被 0.0.2 取代。**
