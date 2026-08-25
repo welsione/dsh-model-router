@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.6 (2026-08-25)
+
+- **新功能 - 瞬时错误重试（feature: retry-on-throttle）**：限流/配额/服务端/超时/传输/空响应等**瞬时错误**不再「立刻冷却并切换候选」——先对**同一候选**短暂等待后重试（默认最多 2 次，间隔 1s/2s 线性退避），大概率能恢复；重试耗尽才进冷却并切换。AUTH/未知模型等**配置类错误**不重试（重试无意义），直接走现有 failover。只有「首 token 前失败」才重试；已输出内容后失败 → 透传/上抛，不重试（避免内容重复）。新增配置 `retryOnThrottle`（默认 true）/ `maxRetriesPerCandidate`（默认 2，0-5）/ `retryBackoffMs`（默认 1000），设置面板新增「瞬时错误重试」开关 + 重试次数/间隔输入框。核心函数 `isTransientFailure` 与可转移判定 `isRetryableFailure` 分离（后者含配置类，前者只含瞬时类），带单测覆盖。
+
 ## 0.0.5 (2026-08-25)
 
 - **修复 - 模型徽章在 agent 工具循环中高频闪烁（二次修复）**：0.0.4 统一了两条路径的 active 判定，但「高亮跟随单个请求 started→served 亮灭」在 agent 场景下本身仍是闪烁源——agent 每步工具调用都是一对请求，徽章每步亮一次灭一次。本次改为**高亮恒定**：有路由状态即恒亮（`dsh-mr-overlay-active`），仅 `all-failed` 显示红色错误态；移除 active state 与 setActive 调用。请求开始/完成不再引起任何样式切换。

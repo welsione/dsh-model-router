@@ -40,6 +40,9 @@ model-router:
 | cooldownMs | 300000 | 冷却基础时长（ms）。按失败类型分级：AUTH/未知模型等「硬失败」用满额；服务端/超时/传输（SERVER/TIMEOUT/TRANSPORT/5xx）按 0.5 倍；限流/配额/空响应（RATE_LIMIT/QUOTA/429/EMPTY_RESPONSE）按 0.2 倍 |
 | cooldownMaxMs | 1800000 | 冷却退避封顶（ms）。连续失败的冷却时长按 `cooldownBackoff ^ (连续失败次数)` 增长，超过此值封顶（默认 30 分钟） |
 | cooldownBackoff | 2 | 连续失败冷却退避倍数（1-16）。设为 1 即关闭退避（恒为基础分级时长） |
+| retryOnThrottle | true | 瞬时错误（限流/配额/服务端/超时/传输/空响应）先重试当前候选再切换；AUTH/未知模型等配置类错误不重试（重试无意义） |
+| maxRetriesPerCandidate | 2 | 瞬时错误最多重试次数（0-5）。重试耗尽才进冷却并切换候选 |
+| retryBackoffMs | 1000 | 重试间隔（ms），线性退避：第 n 次等待 n×此值 |
 | maxSwitchesPerStep | 3 | 每个 step 最多切换候选次数（1-10） |
 | healthRanking | true | 健康度择优：按滑动窗口内成功/失败重排候选链（稳定成功提前、频繁失败后移） |
 | healthWindowSize | 8 | 每个候选健康度统计的滑动窗口大小（3-30） |

@@ -5,6 +5,7 @@ import {
   TIER_SLOTS,
   cooldownKey,
   isRetryableFailure,
+  isTransientFailure,
   cooldownDurationMs,
   failureWeight,
   normalizeRoute,
@@ -48,6 +49,24 @@ test('isRetryableFailure: retryable codes', () => {
   assert.equal(isRetryableFailure({ status: 404 }), false)
   assert.equal(isRetryableFailure(null), false)
   assert.equal(isRetryableFailure(undefined), false)
+})
+
+test('isTransientFailure: transient errors (retryable in place)', () => {
+  for (const code of ['RATE_LIMIT', 'QUOTA', 'SERVER', 'TIMEOUT', 'TRANSPORT', 'EMPTY_RESPONSE']) {
+    assert.equal(isTransientFailure({ code }), true, code)
+  }
+  assert.equal(isTransientFailure({ status: 429 }), true)
+  assert.equal(isTransientFailure({ status: 408 }), true)
+  assert.equal(isTransientFailure({ status: 503 }), true)
+  assert.equal(isTransientFailure({ status: 500 }), true)
+  // 配置类错误：可转移但不该重试（重试无意义）
+  assert.equal(isTransientFailure({ code: 'AUTH' }), false)
+  assert.equal(isTransientFailure({ code: 'UNKNOWN_MODEL' }), false)
+  assert.equal(isTransientFailure({ code: 'MODEL_NOT_FOUND' }), false)
+  assert.equal(isTransientFailure({ status: 401 }), false)
+  assert.equal(isTransientFailure({ status: 404 }), false)
+  assert.equal(isTransientFailure(null), false)
+  assert.equal(isTransientFailure(undefined), false)
 })
 
 test('normalizeRoute: migrates legacy simple/complex when new slots empty', () => {
