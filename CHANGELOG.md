@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.5 (2026-08-25)
+
+- **修复 - 模型徽章在 agent 工具循环中高频闪烁（二次修复）**：0.0.4 统一了两条路径的 active 判定，但「高亮跟随单个请求 started→served 亮灭」在 agent 场景下本身仍是闪烁源——agent 每步工具调用都是一对请求，徽章每步亮一次灭一次。本次改为**高亮恒定**：有路由状态即恒亮（`dsh-mr-overlay-active`），仅 `all-failed` 显示红色错误态；移除 active state 与 setActive 调用。请求开始/完成不再引起任何样式切换。
+- **修复 - 手动档位被面板自动保存清空（夯自动变 NPC）**：设置面板保存的 body 不携带 `manualTiers`（会话手动档位由 `/api/model-router/tier` 的 mutate 路径维护），而 schema 对缺失字段填默认 `{}`，`settings.replace` 整段替换后手动档位被清空——表现为「明明选了夯(tier3)，改一次面板配置（任何自动保存）后就自动变回 NPC(tier2 默认档)」。修复双保险：服务端 `validateSection` 在 body 未显式提供 `manualTiers` 时保留现有持久化值；前端 `doAutoSave` 提交时从 state 快照原样回传 `manualTiers`（canonicalCfg 比对不含该字段，不会触发保存循环）。
+- **改进 - 面板「冷却中的候选」展示失败原因**：冷却记录从单一时间戳升级为 `{until, durationMs, code, status, streak}`，面板每条冷却显示失败原因（如 `RATE_LIMIT HTTP 429`）+ 剩余时间，悬浮显示连续失败次数与本次冷却时长。空态提示补充冷却机制说明（分级冷却 + 指数退避 + 过期自动清理）。之前「看不到冷却」的直接原因：0.0.4 分级冷却后限流类仅 60 秒、服务端类 150 秒，过期条目在下次请求遍历时被清理，打开面板时常已清空——这不是冷却失效，是冷却变短了。
+
 ## 0.0.4 (2026-08-25)
 
 - **修复 - 对话窗口模型徽章高亮抖动**：`OverlayStatus`（显示 `provider/model + 思考级别`，如 `opencode-go/deepseek-v4-flash high`）有两条更新路径——session 事件流（实时）与 2 秒轮询兜底——它们对 `active`（高亮）的判定互相矛盾：事件流「历史里出现过 started 就恒高亮」，轮询「最新事件是 started 才高亮」。请求完成瞬间事件流设高亮 → 2 秒后轮询变灰 → 下个请求又高亮，视觉上每 2 秒闪烁。修法：两条路径统一为「取最新一条状态事件（started/served/all-failed），active = 最新事件是 started」；同时跳过 `manual-tier` 事件（它不携带 try/by，作为最新状态会把显示清空导致徽章消失又出现）。请求开始高亮一次、完成熄灭一次，不再闪烁。
