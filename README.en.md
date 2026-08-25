@@ -37,8 +37,8 @@ Right: the "统一模型路由" settings panel — candidate chains per plan wit
 | Capability | One line |
 |---|---|
 | Multi-plan routing | Multiple plans (Route Groups) coexist, each with its own three-tier candidate chain and tier names |
-| Auto failover | Pre-first-token failures (rate limit / quota / auth / network / unknown model / empty response) switch to the next candidate; the failed one enters cooldown |
-| Health-aware ranking | Sliding-window success/failure counts reorder chains — stable successes up, frequent failures down; toggle off in one click |
+| Auto failover | Pre-first-token failures (rate limit / quota / auth / network / unknown model / empty response) switch to the next candidate; the failed one enters **graded cooldown** (short for rate-limit, medium for server, long for auth) with **exponential backoff** (capped at 30 min) |
+| Health-aware ranking | Sliding-window **time-decayed, error-code-weighted** scores reorder chains — recent results weigh more, server-class failures cost more than rate-limit ones; toggle off in one click |
 | Three tiers + manual tier | Per-plan `tier1` light · `tier2` standard · `tier3` powerful, auto-selected by `purpose` with downgrade; per-session manual tier in the chat window |
 | Reasoning effort | Per-candidate `reasoningEffort`, prechecked with a real request at save time — only host-accepted levels allowed |
 | Tier names | Per-plan custom tier display names (`routes.<id>.tierNames`), click-to-rename colored capsules, synced to the chat plan menu |

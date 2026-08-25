@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.4 (2026-08-25)
+
+- **修复 - 对话窗口模型徽章高亮抖动**：`OverlayStatus`（显示 `provider/model + 思考级别`，如 `opencode-go/deepseek-v4-flash high`）有两条更新路径——session 事件流（实时）与 2 秒轮询兜底——它们对 `active`（高亮）的判定互相矛盾：事件流「历史里出现过 started 就恒高亮」，轮询「最新事件是 started 才高亮」。请求完成瞬间事件流设高亮 → 2 秒后轮询变灰 → 下个请求又高亮，视觉上每 2 秒闪烁。修法：两条路径统一为「取最新一条状态事件（started/served/all-failed），active = 最新事件是 started」；同时跳过 `manual-tier` 事件（它不携带 try/by，作为最新状态会把显示清空导致徽章消失又出现）。请求开始高亮一次、完成熄灭一次，不再闪烁。
+- **优化 - 分级冷却 + 指数退避（feature: cooldown-grading）**：冷却不再一刀切。按失败类型分级——AUTH/未知模型等「硬失败」用满额基础时长；服务端/超时/传输（SERVER/TIMEOUT/TRANSPORT/5xx）按 0.5 倍；限流/配额/空响应（RATE_LIMIT/QUOTA/429/EMPTY_RESPONSE）按 0.2 倍。连续失败按 `cooldownBackoff^(连续失败次数)` 指数退避，封顶 `cooldownMaxMs`（默认 30 分钟）。新增配置 `cooldownMaxMs` / `cooldownBackoff`（cooldownMs 语义变为「基础时长」，兼容旧配置）；设置面板新增「冷却退避」「冷却封顶」输入框。
+- **修复 - `isRetryableFailure` 对 429/408 的判定矛盾**：此前 `status >= 500` 才可转移，429（限流）与 408（请求超时）被排除——首个候选被限流时整个请求直接失败。现 429/408 视为可转移（瞬时可恢复类），与 `RATE_LIMIT`/`TIMEOUT` 错误码语义一致。
+- **优化 - 健康度择优升级（时间衰减 + 错误码加权）**：评分从「窗口内 ok - 2×fail 计数」改为逐记录**指数时间衰减**（半衰期 5 分钟，最近结果权重高、陈旧结果快速失效）加**错误码加权**（服务端/网络类失败 -3、限流/配额类 -1、其余 -2）。候选「刚恢复」或「刚劣化」能更快反映到排序；面板健康度数据新增 `streak`（连续失败次数）。
+
 ## 0.0.3 (2026-08-24)
 
 - **修复 - client bundle 加载报错 `loaded without registering`**：`lib/client.js` 里 `window.__ModuleLoader__.load` 的 `id` 原本是短名 `dsh-model-router`，但 DSH web 的 client-modules Loader 以**完整包名**注册/校验 factory（官方 client bundle 均用 `@deepseek-ai/...` 全名），导致 bundle 加载后找不到对应注册 → 启动时报 `Failed to load plugins / loaded without registering "@welsione/dsh-model-router"`。改为 `id: '@welsione/dsh-model-router'` 后正常注册。已用 dsh-plugin-developer 复验：check 93/100 (A) + 运行级 test（打包→安装→层生效→启动冒烟→卸载）全 PASS。

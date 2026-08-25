@@ -5,6 +5,8 @@ import {
   TIER_SLOTS,
   cooldownKey,
   isRetryableFailure,
+  cooldownDurationMs,
+  failureWeight,
   normalizeRoute,
   findByCandidate,
   selectTier,
@@ -37,7 +39,13 @@ test('isRetryableFailure: retryable codes', () => {
   }
   assert.equal(isRetryableFailure({ code: 'INVALID_ARGUMENT' }), false)
   assert.equal(isRetryableFailure({ status: 503 }), true)
-  assert.equal(isRetryableFailure({ status: 429 }), false)
+  assert.equal(isRetryableFailure({ status: 500 }), true)
+  // 429 限流 / 408 请求超时：瞬时可恢复 → 必须可转移（否则首个候选被限流即整体失败）
+  assert.equal(isRetryableFailure({ status: 429 }), true)
+  assert.equal(isRetryableFailure({ status: 408 }), true)
+  // 4xx 业务错误不可转移
+  assert.equal(isRetryableFailure({ status: 401 }), false)
+  assert.equal(isRetryableFailure({ status: 404 }), false)
   assert.equal(isRetryableFailure(null), false)
   assert.equal(isRetryableFailure(undefined), false)
 })
@@ -118,10 +126,85 @@ test('candidateHealthScore: neutral when no evidence', () => {
   assert.equal(candidateHealthScore({}), 0)
   assert.equal(candidateHealthScore({ ok: 0, fail: 0 }), 0)
 })
-test('candidateHealthScore: success counts +1, failure costs 2', () => {
+test('candidateHealthScore: legacy {ok,fail} counters fall back to ok - 2*fail', () => {
   assert.equal(candidateHealthScore({ ok: 3, fail: 0 }), 3)
   assert.equal(candidateHealthScore({ ok: 0, fail: 1 }), -2)
   assert.equal(candidateHealthScore({ ok: 2, fail: 1 }), 0) // 2 - 2*1
+})
+test('candidateHealthScore: fresh buf records with weights (decay=1 at now)', () => {
+  const now = Date.now()
+  const buf = [
+    { ok: true, ts: now },
+    { ok: true, ts: now },
+    { ok: true, ts: now },
+  ]
+  assert.equal(candidateHealthScore({ buf }, now), 3) // 3 次成功
+  // 1 次未知码失败 = -2
+  assert.equal(candidateHealthScore({ buf: [...buf, { ok: false, ts: now, code: null }] }, now), 1)
+})
+test('candidateHealthScore: failure weight by code (rate-limit -1, server -3)', () => {
+  const now = Date.now()
+  const mk = (code, status) => ({ ok: false, ts: now, code, status })
+  assert.equal(candidateHealthScore({ buf: [mk('RATE_LIMIT')] }, now), -1)
+  assert.equal(candidateHealthScore({ buf: [mk('QUOTA')] }, now), -1)
+  assert.equal(candidateHealthScore({ buf: [mk('SERVER')] }, now), -3)
+  assert.equal(candidateHealthScore({ buf: [mk('TRANSPORT')] }, now), -3)
+  assert.equal(candidateHealthScore({ buf: [mk(null, 503)] }, now), -3)
+  assert.equal(candidateHealthScore({ buf: [mk(null, 429)] }, now), -1)
+  assert.equal(candidateHealthScore({ buf: [mk('AUTH')] }, now), -2)
+})
+test('candidateHealthScore: time decay — old results weigh less', () => {
+  const now = Date.now()
+  const old = now - 10 * 60_000 // 10 分钟前（≈ 半衰期 5 分钟的 e^-2 ≈ 0.135）
+  const recent = now - 1000
+  const oldFail = candidateHealthScore({ buf: [{ ok: false, ts: old, code: 'SERVER' }] }, now)
+  const recentFail = candidateHealthScore({ buf: [{ ok: false, ts: recent, code: 'SERVER' }] }, now)
+  assert.ok(recentFail < oldFail, `recent ${recentFail} should be worse than old ${oldFail}`)
+  assert.ok(oldFail > -3 && oldFail < 0, `old fail decays toward 0: ${oldFail}`)
+})
+
+test('failureWeight: rate-limit/quota/429 light, server/transport/timeout heavy', () => {
+  assert.equal(failureWeight('RATE_LIMIT', null), 1)
+  assert.equal(failureWeight('QUOTA', null), 1)
+  assert.equal(failureWeight(null, 429), 1)
+  assert.equal(failureWeight('SERVER', null), 3)
+  assert.equal(failureWeight('TRANSPORT', null), 3)
+  assert.equal(failureWeight('TIMEOUT', null), 3)
+  assert.equal(failureWeight(null, 503), 3)
+  assert.equal(failureWeight('AUTH', null), 2)
+  assert.equal(failureWeight(null, null), 2)
+})
+
+test('cooldownDurationMs: base scaling by failure class', () => {
+  const base = 300000, max = 1800000, backoff = 2, streak = 0
+  // 硬失败（AUTH/未知模型/其他）= 满额
+  assert.equal(cooldownDurationMs({ code: 'AUTH' }, base, max, backoff, streak), 300000)
+  assert.equal(cooldownDurationMs({}, base, max, backoff, streak), 300000)
+  // 服务端/超时/传输 = 0.5x
+  assert.equal(cooldownDurationMs({ code: 'SERVER' }, base, max, backoff, streak), 150000)
+  assert.equal(cooldownDurationMs({ code: 'TIMEOUT' }, base, max, backoff, streak), 150000)
+  assert.equal(cooldownDurationMs({ status: 503 }, base, max, backoff, streak), 150000)
+  // 限流/配额/空响应 = 0.2x
+  assert.equal(cooldownDurationMs({ code: 'RATE_LIMIT' }, base, max, backoff, streak), 60000)
+  assert.equal(cooldownDurationMs({ code: 'QUOTA' }, base, max, backoff, streak), 60000)
+  assert.equal(cooldownDurationMs({ status: 429 }, base, max, backoff, streak), 60000)
+  assert.equal(cooldownDurationMs({ code: 'EMPTY_RESPONSE' }, base, max, backoff, streak), 60000)
+})
+test('cooldownDurationMs: exponential backoff on consecutive failures, capped', () => {
+  const base = 300000, max = 1800000, backoff = 2
+  // 连续失败 streak=1 → 2x；streak=2 → 4x；… 封顶 max
+  assert.equal(cooldownDurationMs({ code: 'AUTH' }, base, max, backoff, 0), 300000)
+  assert.equal(cooldownDurationMs({ code: 'AUTH' }, base, max, backoff, 1), 600000)
+  assert.equal(cooldownDurationMs({ code: 'AUTH' }, base, max, backoff, 2), 1200000)
+  assert.equal(cooldownDurationMs({ code: 'AUTH' }, base, max, backoff, 3), 1800000) // 2400000 → 封顶 1800000
+  assert.equal(cooldownDurationMs({ code: 'AUTH' }, base, max, backoff, 10), 1800000) // 封顶
+  // 限流类也退避但基数小：streak=1 → 120000
+  assert.equal(cooldownDurationMs({ code: 'RATE_LIMIT' }, base, max, backoff, 1), 120000)
+  // 自定义退避倍数
+  assert.equal(cooldownDurationMs({ code: 'AUTH' }, base, max, 3, 1), 900000)
+})
+test('cooldownDurationMs: clamps tiny bases to 1s', () => {
+  assert.equal(cooldownDurationMs({ code: 'AUTH' }, 100, 5000, 2, 0), 1000)
 })
 
 test('rankChainByHealth: promotes stable-success candidate, demotes frequent-failures', () => {

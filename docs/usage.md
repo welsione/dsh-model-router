@@ -14,7 +14,9 @@
 ```yaml
 model-router:
   enabled: true
-  cooldownMs: 300000
+  cooldownMs: 300000        # 基础冷却；按失败类型分级 + 连续失败指数退避，封顶 cooldownMaxMs
+  cooldownMaxMs: 1800000    # 冷却退避封顶（默认 30 分钟）
+  cooldownBackoff: 2        # 连续失败冷却退避倍数
   maxSwitchesPerStep: 3
   healthRanking: true      # 健康度择优（稳定成功的候选优先）
   routes:
@@ -35,7 +37,9 @@ model-router:
 | 字段 | 默认值 | 说明 |
 |---|---|---|
 | enabled | true | 总开关；false 时全部放行原路径 |
-| cooldownMs | 300000 | 失败候选冷却时长（ms） |
+| cooldownMs | 300000 | 冷却基础时长（ms）。按失败类型分级：AUTH/未知模型等「硬失败」用满额；服务端/超时/传输（SERVER/TIMEOUT/TRANSPORT/5xx）按 0.5 倍；限流/配额/空响应（RATE_LIMIT/QUOTA/429/EMPTY_RESPONSE）按 0.2 倍 |
+| cooldownMaxMs | 1800000 | 冷却退避封顶（ms）。连续失败的冷却时长按 `cooldownBackoff ^ (连续失败次数)` 增长，超过此值封顶（默认 30 分钟） |
+| cooldownBackoff | 2 | 连续失败冷却退避倍数（1-16）。设为 1 即关闭退避（恒为基础分级时长） |
 | maxSwitchesPerStep | 3 | 每个 step 最多切换候选次数（1-10） |
 | healthRanking | true | 健康度择优：按滑动窗口内成功/失败重排候选链（稳定成功提前、频繁失败后移） |
 | healthWindowSize | 8 | 每个候选健康度统计的滑动窗口大小（3-30） |
