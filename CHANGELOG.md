@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.7 (2026-08-25)
+
+- **修复 - 档位徽章与模型徽章不一致（NPC 档显示夯档的 glm-5.3 + max）**：`OverlayStatus` 的模型名取自**最新路由事件**（`latest.try/by`，可能是历史/其他档位请求的残留），而思考级别取自**当前档位配置反查**——两个数据源不同步会拼出配置里不存在的组合（如档位 NPC 但显示夯档的 `zai-coding-cn/glm-5.3`，且 `max` 徽章其实来自 NPC 档首候选 deepseek-v4-flash 的配置）。修复两点：
+  1. **effort 与模型名同源**：路由事件（started/served）新增 `effort` 字段（记录候选真实 `reasoningEffort`），前端优先取 `latest.effort`，与 `full` 永远来自同一候选；
+  2. **历史残留兜底**：若最新事件的候选**不属于当前档位链**（手动档位已切走、事件是历史残留），则显示「当前档位（手动档或默认 tier2）首候选 + 其 effort」，与 PackageSelect 档位徽章一致。cfgInfo 反查新增 `effSlot/slotChain/effFirst` 字段支撑判断。
+
 ## 0.0.6 (2026-08-25)
 
 - **新功能 - 瞬时错误重试（feature: retry-on-throttle）**：限流/配额/服务端/超时/传输/空响应等**瞬时错误**不再「立刻冷却并切换候选」——先对**同一候选**短暂等待后重试（默认最多 2 次，间隔 1s/2s 线性退避），大概率能恢复；重试耗尽才进冷却并切换。AUTH/未知模型等**配置类错误**不重试（重试无意义），直接走现有 failover。只有「首 token 前失败」才重试；已输出内容后失败 → 透传/上抛，不重试（避免内容重复）。新增配置 `retryOnThrottle`（默认 true）/ `maxRetriesPerCandidate`（默认 2，0-5）/ `retryBackoffMs`（默认 1000），设置面板新增「瞬时错误重试」开关 + 重试次数/间隔输入框。核心函数 `isTransientFailure` 与可转移判定 `isRetryableFailure` 分离（后者含配置类，前者只含瞬时类），带单测覆盖。
