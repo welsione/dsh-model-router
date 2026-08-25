@@ -2,6 +2,8 @@
 
 ## 0.0.7 (2026-08-25)
 
+- **修复 - `reasoningEffortsFallback` 被面板保存重置**：面板此前未处理该字段（load/canonicalCfg 均缺失），保存时后端 schema 填默认 `['low','medium','high']` + `settings.replace` 整段替换 → 用户自定义的兜底档位集被静默重置。与 manualTiers 同源问题，同方案修复：服务端 `validateSection` 在 body 未携带时保留现有值；前端 load/canonicalCfg/baselineRef 补上该字段。
+- **修复 - 流自然结束（无 finish chunk）时缺 served 事件与健康度记录**：`routeThrough` 的 `normalEnd` 分支此前直接 `return`，导致 OverlayStatus 卡在「请求中」高亮、健康度漏记成功。现补记 served 事件 + `markHealth(true)`（罕见路径：正常适配器都会发 finish）。
 - **修复 - 档位徽章与模型徽章不一致（NPC 档显示夯档的 glm-5.3 + max）**：`OverlayStatus` 的模型名取自**最新路由事件**（`latest.try/by`，可能是历史/其他档位请求的残留），而思考级别取自**当前档位配置反查**——两个数据源不同步会拼出配置里不存在的组合（如档位 NPC 但显示夯档的 `zai-coding-cn/glm-5.3`，且 `max` 徽章其实来自 NPC 档首候选 deepseek-v4-flash 的配置）。修复两点：
   1. **effort 与模型名同源**：路由事件（started/served）新增 `effort` 字段（记录候选真实 `reasoningEffort`），前端优先取 `latest.effort`，与 `full` 永远来自同一候选；
   2. **历史残留兜底**：若最新事件的候选**不属于当前档位链**（手动档位已切走、事件是历史残留），则显示「当前档位（手动档或默认 tier2）首候选 + 其 effort」，与 PackageSelect 档位徽章一致。cfgInfo 反查新增 `effSlot/slotChain/effFirst` 字段支撑判断。
