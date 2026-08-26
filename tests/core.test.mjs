@@ -18,6 +18,9 @@ import {
   effortsForCandidate,
   validateReasoningEffort,
   withSanitizedReplayState,
+  estimateMessageTokens,
+  estimateRequestTokens,
+  filterChainByContext,
 } from '../lib/core.mjs'
 
 const cand = (provider, model, reasoningEffort) => {
@@ -321,5 +324,82 @@ test('validateReasoningEffort: empty value passes; empty fallback rejects all', 
   assert.equal(validateReasoningEffort('', null, ['low']), null)
   assert.equal(validateReasoningEffort(undefined, null, ['low']), null)
   assert.ok(validateReasoningEffort('low', null, []).includes('未配置兜底档位'))
+})
+
+// ------------------------------------------------------------------
+// 上下文窗口感知（context-aware filtering）
+// ------------------------------------------------------------------
+test('estimateMessageTokens: text blocks chars/4 + overheads', () => {
+  // 与宿主 token-meter 标尺一致：text 块 = ceil(len/4)+4，消息 +4
+  assert.equal(estimateMessageTokens({ role: 'user', content: [{ type: 'text', text: 'abcd' }] }), 1 + 4 + 4)
+  assert.equal(estimateMessageTokens({ role: 'user', content: [{ type: 'text', text: 'abcde' }] }), 2 + 4 + 4)
+  // string content 兼容
+  assert.equal(estimateMessageTokens({ role: 'user', content: 'abcd' }), 1 + 4 + 4)
+  // 空/非法消息不抛错
+  assert.equal(estimateMessageTokens(null), 0)
+  assert.equal(estimateMessageTokens({}), 4)
+})
+
+test('estimateMessageTokens: tool-call and tool-result blocks', () => {
+  const msg = { role: 'assistant', content: [{ type: 'tool-call', name: 'bash', arguments: 'x'.repeat(40) }] }
+  // ceil(4/4) + ceil(40/4) + 4 + 4 = 1+10+4+4
+  assert.equal(estimateMessageTokens(msg), 19)
+  const nested = { role: 'user', content: [{ type: 'tool-result', content: [{ type: 'text', text: 'y'.repeat(8) }] }] }
+  // tool-result = estimateContent(内层) + 4；内层 text = ceil(8/4)+4=6 → 6+4=10；消息 +4 → 14
+  assert.equal(estimateMessageTokens(nested), 14)
+})
+
+test('estimateRequestTokens: messages + system + tools', () => {
+  const opts = {
+    messages: [
+      { role: 'user', content: [{ type: 'text', text: 'a'.repeat(400) }] },       // 100+4+4=108
+      { role: 'assistant', content: [{ type: 'text', text: 'b'.repeat(400) }] },  // 108
+    ],
+    system: 's'.repeat(40),  // 10+4=14
+    tools: [{ name: 't', description: 'd'.repeat(36) }], // JSON 长度约 60 → ceil(60/4)+4 ≈ 19（按实际序列化算）
+  }
+  const n = estimateRequestTokens(opts)
+  // messages 216 + system 14 + tools >0
+  assert.ok(n >= 230, `期望 >=230，实际 ${n}`)
+  // 无 messages 不抛错
+  assert.equal(estimateRequestTokens({}), 0)
+  assert.equal(estimateRequestTokens(null), 0)
+})
+
+test('filterChainByContext: skips candidates whose window cannot fit', () => {
+  const chain = [
+    cand('kimi-coding', 'k3-256k'),          // 256K
+    cand('zai-coding-cn', 'glm-5.3'),        // 1M
+    cand('volcengine-mian', 'glm-5.3'),      // 1M
+  ]
+  const windows = { 'kimi-coding/k3-256k': 262144, 'zai-coding-cn/glm-5.3': 1000000, 'volcengine-mian/glm-5.3': 1000000 }
+  const windowOf = (c) => windows[cooldownKey(c)] ?? null
+  // 465K 会话：need=465000+8192=473192 > 262144*0.9=235929.6 → k3-256k 被跳过
+  const { chain: kept, skipped } = filterChainByContext(chain, 465000, windowOf, { margin: 0.9, reserveTokens: 8192 })
+  assert.deepEqual(kept.map(cooldownKey), ['zai-coding-cn/glm-5.3', 'volcengine-mian/glm-5.3'])
+  assert.deepEqual(skipped.map((s) => cooldownKey(s.candidate)), ['kimi-coding/k3-256k'])
+})
+
+test('filterChainByContext: small request keeps all candidates', () => {
+  const chain = [cand('kimi-coding', 'k3-256k'), cand('zai-coding-cn', 'glm-5.3')]
+  const windowOf = (c) => (c.model === 'k3-256k' ? 262144 : 1000000)
+  const { chain: kept, skipped } = filterChainByContext(chain, 20000, windowOf, { margin: 0.9, reserveTokens: 8192 })
+  assert.equal(kept.length, 2)
+  assert.equal(skipped.length, 0)
+})
+
+test('filterChainByContext: unknown window (null) is not filtered', () => {
+  const chain = [cand('acme', 'mystery')]
+  const { chain: kept } = filterChainByContext(chain, 900000, () => null, { margin: 0.9, reserveTokens: 8192 })
+  assert.equal(kept.length, 1) // 窗口未知 → 放行尝试，不错杀
+})
+
+test('filterChainByContext: margin/reserve defaults are safe', () => {
+  const chain = [cand('p', 'm')]
+  // 不传 opts：margin=1, reserve=0 → 恰好等于窗口不跳过
+  const { chain: kept } = filterChainByContext(chain, 262144, () => 262144)
+  assert.equal(kept.length, 1)
+  const { chain: kept2 } = filterChainByContext(chain, 262145, () => 262144)
+  assert.equal(kept2.length, 0)
 })
 
