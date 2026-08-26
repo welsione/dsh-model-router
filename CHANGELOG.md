@@ -2,6 +2,8 @@
 
 ## 0.0.7 (2026-08-25)
 
+- **修复 - all-failed 错误码误导宿主层整链盲重试**：此前 `all-failed` 上报「最后一个候选的失败码」，当链上失败原因不同（如 k3 是 AUTH/401，glm-5.3 是 RATE_LIMIT/429）时，宿主层 `dsh-llm-retry` 看到 RATE_LIMIT 判定可重试 → 整链重试 5 次，每次都重复同样的失败链，白白浪费时间。现新增 `pickRepresentativeFailure`：从整链所有候选的失败里选**代表错误**——优先报**非瞬时/持久性**错误（AUTH/UNKNOWN_MODEL/INVALID_ARGUMENT 等，凭据/套餐/配置问题不会自愈，宿主层不会对其整链重试）；全部瞬时错误时才报链首（预期路径）。日志同时输出整链失败汇总（`AUTH#401 / RATE_LIMIT#429`）。
+- **修复 - 候选全冷却时 passthrough 死循环**：链上候选全部冷却且**原始请求目标就是刚失败的坏候选**（如 k3 401 进冷却后，宿主层重试每次 passthrough 放行直连 k3 → 必然再次失败 → 死循环）。现该场景**不再放行**，直接产生 `all-failed` finish（错误码取冷却记录里的代表错误），让宿主层看到持久性错误后停止盲目重试；仅在原始目标**不在链上**时才维持 passthrough（放行不相关路径）。
 - **修复 - `reasoningEffortsFallback` 被面板保存重置**：面板此前未处理该字段（load/canonicalCfg 均缺失），保存时后端 schema 填默认 `['low','medium','high']` + `settings.replace` 整段替换 → 用户自定义的兜底档位集被静默重置。与 manualTiers 同源问题，同方案修复：服务端 `validateSection` 在 body 未携带时保留现有值；前端 load/canonicalCfg/baselineRef 补上该字段。
 - **修复 - 流自然结束（无 finish chunk）时缺 served 事件与健康度记录**：`routeThrough` 的 `normalEnd` 分支此前直接 `return`，导致 OverlayStatus 卡在「请求中」高亮、健康度漏记成功。现补记 served 事件 + `markHealth(true)`（罕见路径：正常适配器都会发 finish）。
 - **修复 - 档位徽章与模型徽章不一致（NPC 档显示夯档的 glm-5.3 + max）**：`OverlayStatus` 的模型名取自**最新路由事件**（`latest.try/by`，可能是历史/其他档位请求的残留），而思考级别取自**当前档位配置反查**——两个数据源不同步会拼出配置里不存在的组合（如档位 NPC 但显示夯档的 `zai-coding-cn/glm-5.3`，且 `max` 徽章其实来自 NPC 档首候选 deepseek-v4-flash 的配置）。修复两点：

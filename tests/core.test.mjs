@@ -6,6 +6,7 @@ import {
   cooldownKey,
   isRetryableFailure,
   isTransientFailure,
+  pickRepresentativeFailure,
   cooldownDurationMs,
   failureWeight,
   normalizeRoute,
@@ -67,6 +68,32 @@ test('isTransientFailure: transient errors (retryable in place)', () => {
   assert.equal(isTransientFailure({ status: 404 }), false)
   assert.equal(isTransientFailure(null), false)
   assert.equal(isTransientFailure(undefined), false)
+})
+
+test('pickRepresentativeFailure: prefers persistent (non-transient) failure over transient', () => {
+  // AUTH 是非瞬时（持久性）错误 → 应被选中（宿主层不会对持久性错误整链盲目重试）
+  const failures = [
+    { code: 'RATE_LIMIT', status: 429 },
+    { code: 'AUTH', status: 401 },
+  ]
+  assert.equal(pickRepresentativeFailure(failures).code, 'AUTH')
+  // 顺序无关：持久性错误的优先
+  const reversed = [failures[1], failures[0]]
+  assert.equal(pickRepresentativeFailure(reversed).code, 'AUTH')
+  // UNKNOWN_MODEL 也是持久性
+  assert.equal(pickRepresentativeFailure([{ code: 'SERVER' }, { code: 'UNKNOWN_MODEL' }]).code, 'UNKNOWN_MODEL')
+})
+test('pickRepresentativeFailure: all-transient -> first (chain order)', () => {
+  const failures = [
+    { code: 'TIMEOUT' },
+    { code: 'SERVER', status: 500 },
+  ]
+  assert.equal(pickRepresentativeFailure(failures).code, 'TIMEOUT')
+})
+test('pickRepresentativeFailure: empty / invalid input -> null', () => {
+  assert.equal(pickRepresentativeFailure([]), null)
+  assert.equal(pickRepresentativeFailure(undefined), null)
+  assert.equal(pickRepresentativeFailure(null), null)
 })
 
 test('normalizeRoute: migrates legacy simple/complex when new slots empty', () => {
