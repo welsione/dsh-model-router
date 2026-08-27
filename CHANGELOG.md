@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.8 (2026-08-27)
+
+- **治本 - 删除会话事件落盘（卸载兼容）**：此前每次路由决策都把 `model-router/route` 事件 `session.append` 进会话日志，供对话窗口徽章订阅实时消费。该事件对会话重建零价值（纯实时广播），却因不在 harness 事件白名单且 `append` 不透传 `ignorable` 标记，导致**卸载本插件后所有含该事件的会话触发 `SessionFormatUnsupportedError` 整份拒载**。本次彻底删除「写会话日志」：
+  - 服务端删除 `emitRouteEvent` 及全部 9 处调用点、`KNOWN_SESSION_EVENT_TYPES` 白名单注册（含多实例注册加固）、`routeEventPersistence` 配置；`inject` 移除 `sessions`（不再依赖会话服务）。
+  - 客户端 `OverlayStatus` 删除「订阅会话事件流」路径，轮询 `/api/model-router/state` 升为唯一数据源（按 sessionId 过滤 + ts 取最新）；删除面板「路由事件写入会话日志」开关。
+  - 徽章功能完整保留（2s 轮询对「显示当前模型」足够实时）；单一数据源顺带消除了过去「事件流 vs 轮询」两源互踩导致的徽章闪烁根因。
+  - 存量会话日志不受影响（旧事件已批量补 `ignorable:true` 标记）。
+- **新功能 - `agent/request` 信封解析（轨迹面板显示真实服务模型）**：DSH 把 `agent/request` waterfall 返回的 config 记入 `request/header`（轨迹/trajectory 面板数据源），这发生在 `llm/stream` 中间件改写**之前**--导致轨迹永远显示「配置模型」（如 `kimi-coding/k3-256k`）而非实际服务的模型（如 tier2 的 `opencode-go/deepseek-v4-flash`）。新增 `agent/request` waterfall 处理器：把会话模型（统一名或候选名）在信封层就解析为**当前生效档位的首个可用候选**（经冷却过滤 + 健康排序），与 `llm/stream` 的路由决策天然一致。附带收益：`request/context` 的 `contextWindow` 记录正确（compaction 时机不再跟着错的窗口走）；统一名「穷鬼套餐」做会话模型不再 NO_ADAPTER。
+- **修复 - 模型徽章在两模型间跳动（两处「最新事件」判定纠错）**：轮询路径此前 `mine[mine.length-1]` 取的是**最旧**一条（服务端 history 是「最新在前」的反转序）--长会话残留的昨日 tier2 事件被当成最新状态，与真最新事件来回覆盖。改为显式按 `ts` 取最大，与服务端数组顺序解耦。
+- **新功能 - 上下文窗口感知路由（context-aware filtering）**：按请求 messages 启发式估算 token（与宿主 token-meter 同标尺 chars/4），跳过「窗口肯定装不下」的候选--大会话不再每次先打小窗口候选失败一次才 failover（浪费请求+延迟，且溢出错误污染其冷却/健康档案）。新增配置 `contextAware`（默认 true）/ `contextMargin`（默认 0.9）/ `contextReserveTokens`（默认 8192），候选可显式声明 `contextWindow` 覆盖目录解析；设置面板新增「上下文窗口感知」开关 + 窗口余量/输出预留输入框。跳过不算失败、不进冷却（`skipped-context` 事件记录）。
+
 ## 0.0.7 (2026-08-25)
 
 - **修复 - all-failed 错误码误导宿主层整链盲重试**：此前 `all-failed` 上报「最后一个候选的失败码」，当链上失败原因不同（如 k3 是 AUTH/401，glm-5.3 是 RATE_LIMIT/429）时，宿主层 `dsh-llm-retry` 看到 RATE_LIMIT 判定可重试 → 整链重试 5 次，每次都重复同样的失败链，白白浪费时间。现新增 `pickRepresentativeFailure`：从整链所有候选的失败里选**代表错误**——优先报**非瞬时/持久性**错误（AUTH/UNKNOWN_MODEL/INVALID_ARGUMENT 等，凭据/套餐/配置问题不会自愈，宿主层不会对其整链重试）；全部瞬时错误时才报链首（预期路径）。日志同时输出整链失败汇总（`AUTH#401 / RATE_LIMIT#429`）。
