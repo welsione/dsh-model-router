@@ -3,6 +3,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   TIER_SLOTS,
+  ROUTE_EVENT_TYPE,
+  registerRouteEventType,
   cooldownKey,
   isRetryableFailure,
   isTransientFailure,
@@ -36,6 +38,38 @@ test('cooldownKey', () => {
 
 test('TIER_SLOTS ordered tier1→tier3', () => {
   assert.deepEqual(TIER_SLOTS, ['tier1', 'tier2', 'tier3'])
+})
+
+test('registerRouteEventType: registers into every reachable Set instance', () => {
+  // 模拟 pnpm 提升 / 多份拷贝导致的多 realpath 场景：两份独立 Set 都要注册到
+  const a = new Set()
+  const b = new Set()
+  const { registered, failed } = registerRouteEventType([
+    { path: 'static', set: a },
+    { path: 'via-persistence', set: b },
+  ])
+  assert.equal(a.has(ROUTE_EVENT_TYPE), true)
+  assert.equal(b.has(ROUTE_EVENT_TYPE), true)
+  assert.deepEqual(registered.sort(), ['static', 'via-persistence'].sort())
+  assert.deepEqual(failed, [])
+})
+
+test('registerRouteEventType: skips non-Set targets without aborting others', () => {
+  const good = new Set()
+  const { registered, failed } = registerRouteEventType([
+    { path: 'broken', set: null },
+    { path: 'notaset', set: {} },
+    { path: 'good', set: good },
+  ])
+  assert.equal(good.has(ROUTE_EVENT_TYPE), true)
+  assert.deepEqual(registered, ['good'])
+  assert.equal(failed.length, 2)
+  // 抛错的 add 也要被捕获而不中断
+  const throwing = { add() { throw new Error('frozen') } }
+  const r2 = registerRouteEventType([{ path: 'throwing', set: throwing }])
+  assert.equal(r2.registered.length, 0)
+  assert.equal(r2.failed.length, 1)
+  assert.match(r2.failed[0].reason, /frozen/)
 })
 
 test('isRetryableFailure: retryable codes', () => {
