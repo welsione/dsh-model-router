@@ -7,11 +7,11 @@
 
 ---
 
-## TL;DR（当前状态：一切健康，留有优化任务）
+## TL;DR（当前状态：一切健康，卸载兼容已治本）
 
 1. 用户的 DSH 环境**当前完全正常**：`dsh web` 可正常启动，历史会话全部可读，`@welsione/dsh-model-router@^0.0.6` 已装回 web profile。
 2. 存量会话日志的兼容性问题已**全盘修复并验证**（详见下文），原始备份完整保留。
-3. 遗留任务是**治本优化**：让 model-router 写入的 `model-router/route` 会话事件在「插件被卸载后」依然不阻塞历史读取。推荐路径见「优化方案」一节，优先级从高到低为 L1 加固 → L2 上游 PR → L3 架构调整。
+3. 治本优化**已完成**：插件**不再向会话日志写任何自定义事件**（删掉了 `emitRouteEvent`/`session.append` 及白名单注册），卸载兼容问题从根上消失。实时徽章改读 `/api/model-router/state`。详见「四、最终方案」。
 
 ---
 
@@ -114,60 +114,56 @@ corrupt Zstandard session log: first frame is not exactly one header line
 
 ---
 
-## 四、优化方案（待办，按优先级）
+## 四、最终方案：删除会话事件落盘（已落地，2026-08-27 后续）
 
-### L1 · 插件端加固 —— 建议无论如何都做（约半小时） ✅ 已完成
+> **结论**：经过完整的机制分析（见下「为什么是删除」），治本做法不是 L1/L2/L3 中的任何一个，而是**把「写会话日志」整个删掉**。L1（多实例注册加固）和 L3（routeEventPersistence 开关）曾作为中间态实现并提交（commit `f3e95d6`），随后被本次「直接删除」取代并回滚。L2（上游 PR）因无法走通而放弃。
 
-**目标**：消除现有白名单注册方案的静默失效风险。
-**现状风险**：注册只在「单一 import 实例」上生效；若 pnpm 提升/harness 升级/多份拷贝导致 realpath 不一致，注册打到另一份 Set 上，persistence 认不得 → 老故障无声复发。
-**做法**（已落地于 `lib/core.mjs` `registerRouteEventType` + `lib/index.js` apply 开头）：
-- 除静态导入外，再经由 `@deepseek-ai/dsh-session-persistence` 的模块解析（`createRequire` 从 `dsh-session-persistence/package.json` 定位它实际加载的 `dsh-session` 入口）把那份 `KNOWN_SESSION_EVENT_TYPES` 也注册一遍；`===` 去重后单实例场景与现行为完全一致，多 realpath 场景逐份注册。
-- 用 `createRequire` 同步 `require()` 加载（Node≥22 支持 require ESM，与静态 import 共享模块缓存，已实测同实例），避免动态 import 表达式触发安全扫描 MKT-EXEC-009。
-- 日志分级：成功 ≥1 份 → debug 注明生效实例路径；部分失败 → warn；全部失败 → error（不再是静默 warn）。
+### 为什么是删除
 
-**验收**：`tests/core.test.mjs` 新增 3 例（多 Set 实例都注册到 / 非 Set 目标跳过不中断 / add 抛错被捕获），46/46 通过；隔离运行级测试 boot.marker PASS（apply 真实执行）。
+`model-router/route` 事件的**唯一消费者**是前端 `OverlayStatus` 徽章（会话窗口右上角「当前用哪个模型/哪一档」）。它要的是「这个会话**当前**在用哪个模型」——一个**实时、易失、跟着当下进程走**的状态。把这个状态写进**持久的、追加式的、用于会话重建的**事件日志，是用错了存储层：
 
-### L2 · 上游 PR：session.append 支持 ignorable —— 性价比最高的治本解 ⏳ 待提
+- 该事件对**会话重建零价值**（纯实时广播），却让所有含它的会话背上了「卸载即拒载」的风险。
+- 它曾被积成日志噪音（单会话 300+ 条）。
+- 上游 `session.append()` 不透传 `ignorable`（`dsh-session/lib/index.js:1444` 的 opts 白名单只挑 `sourceEventSeqs`/`surfaceOp`），而 `Session` 上唯一的写入口就是 `append`——**不碰上游，就无法让事件天生自足**。绕过 append 直写 `session.log` 会绕过 `surfaceManager.validateNext`/`session/event` 发布/seq 连续性校验，是自残而非方案。
 
-**目标**：事件写出来就自带免疫，无需任何白名单注册，任何机器任何卸载时机都安全。
-**上游改动极小**（基础设施已在）：在 `append()` 的 opts 提取处增加透传：
+插件本来就有一条**正确**的存储路径：`record()` → 内存 `history[]` → `GET /api/model-router/state`（带 `sessionId`）。徽章改读这个端点（按 sessionId 过滤、按 ts 取最新）即可，实时性用 2s 轮询足够。
 
-```js
-...{ ...(surfaceOpts?.ignorable === true ? { ignorable: true } : {}) }
-```
+### 已删除的内容
 
-建议同时更新 SessionEvent 文档字符串与类型定义。
-**插件侧配套**：上游发版后，把白名单注册逻辑整体替换为：
+服务端 `lib/index.js`：
+- `emitRouteEvent()` 函数 + 全部 9 处调用点（started/served/all-failed/failover/passthrough/skipped-context/manual-tier 各处的会话事件写入）。`record()` 内存历史**完整保留**（面板全局历史 + 徽章数据源不受影响）。
+- L1 注册块：`KNOWN_SESSION_EVENT_TYPES.add('model-router/route')` + 多实例注册（`createRequire`/`registerRouteEventType`），连同 `import { KNOWN_SESSION_EVENT_TYPES }`、`import { createRequire }`。
+- L3 schema 字段 `routeEventPersistence` + `validateSection` 里的保留逻辑。
+- `inject` 里移除 `sessions`（服务端不再用 `ctx.sessions`）。
 
-```js
-session.append('model-router/route', { ts: Date.now(), ...entry }, { ignorable: true })
-```
+客户端 `lib/client.js`：
+- `OverlayStatus` 删掉「订阅会话事件流」路径（`deriveFromSession`/`session.subscribe`/`sessions.binding`），轮询 `/api/model-router/state` 升级为唯一数据源（原有按 sessionId 过滤 + 按 ts 取最新逻辑不变）。
+- 面板「路由事件写入会话日志」开关 + 3 处 `routeEventPersistence` 白名单字段。
+- `conversation.input.left` 的 inject 不再传多余的 `sessions` prop（`sessions` 仍被 PackageSelect 的 `subagentAddress` 用着，故 inject 声明保留）。
 
-**行动项**：
-1. 在 @deepseek-ai/dsh 仓库提 issue/PR（动机可直接引用其 known-event-types.js 注释里的 "registration surface ... until such a consumer exists"——本项目即 consumer）
-2. 附上本文档第三节的 API 分析作为论据（作者调研已确认 seed 校验和 normalize 都已接受 ignorable）
-3. 上游发版后发插件 0.1.0 切换写法，保留旧注册兼容老 harness 或按 harness 版本探测分支
+`lib/core.mjs` / `tests/core.test.mjs`：
+- 删除 `ROUTE_EVENT_TYPE` / `registerRouteEventType` 及对应 3 个测试用例。
 
-### L3 · 架构取舍（可选）：路由事件不再落会话日志 ✅ 已实现（默认保持现行为）
+### 收益
 
-**洞察**：路由决策事件的消费方只有两类——订阅会话事件流的实时 UI，和另一套独立的 `record()` 全局存储。它在**会话恢复时没有任何重建价值**，纯实时广播。代价却是：污染会话日志（bazi 项目单会话曾积到 300+ 条噪音）、以及整个卸载兼容难题。
-**做法**（已落地）：新增配置字段 `routeEventPersistence: 'session' | 'live'`（schema `z.union([z.const('session'), z.const('live')]).default('session')`，**默认 'session' 保持现行为不变**）。`'live'` 时 `emitRouteEvent` 跳过 `session.append`，只走 `record()` 全局历史。设置面板加了「路由事件写入会话日志」开关（勾选=session，取消=live），服务端 `validateSection` 在 body 未携带时保留现有持久化值（同 manualTiers/reasoningEffortsFallback 模式）。
-**收益**：用户切到 `'live'` 后新事件不再落盘 → 后续卸载不再有兼容问题；也符合「可调值必须配置化」原则。
-**判断点**：默认仍落盘，因为实时徽章（事件流）与单场会话路由轨迹回放依赖它；切 `'live'` 后实时徽章退化为 2s 轮询、无法回放轨迹。L2 上游发版后，落盘事件自带 ignorable，本开关的「卸载兼容」动机即消失。
+- **卸载兼容问题从根上消失**：插件不再向会话日志写任何自定义事件，`KNOWN_SESSION_EVENT_TYPES` 白名单注册这一整个失败面不复存在。
+- **日志零污染**。
+- **顺带消除了两类徽章闪烁 bug 的根因**：过去「事件流（Map 插入序/分页回填）vs 轮询」两个数据源互踩导致徽章在两模型间跳动；现在单一数据源，问题不复存在。
+- 代价：失去「回放某场历史会话的路由轨迹」（本就无实际用途的过期信息）。
 
-### 完成后的发布流程（供任一层次改动参考）
+### 验证
 
-```sh
-cd ~/CodeSpace/deepseek/dsh-model-router
-# 测试
-node tests/*.mjs  # 具体测试入口见仓库 tests/
-# 预检 & 打包自测
-npm pack --dry-run && npm pack && dsh plugin --profile web add <tarball>
-# npm 发布 + git tag（版本号按 CHANGELOG 语义递增）
-npm publish
-```
+- 单测 `tests/core.test.mjs` 44/44 通过。
+- 合规 `check.mjs` PASS，93/100 (A)，0 error / 1 warn（已知 `patch_name_resolves` 误报）。
+- 隔离运行级测试 `test.mjs` PASS：打包/安装/层生效/启动冒烟/`boot.marker`（apply 真实执行，**无 sessions inject 仍正常**）/卸载清理 全过——卸载兼容的活证明。
 
-> 注意：如果按 dsh-plugin-developer skill 的标准，本仓库目前只改 lib、README 结构未按市场 9 小节组织，收录类工作不在本次范围。
+### 存量注意
+
+本次删除只影响**新**事件不再落盘。**存量会话日志**里的旧 `model-router/route` 事件不受影响——它们已在此前被批量补了 `ignorable:true` 标记（见第一节「已完成的存量修复」），读取端判定门放行。若用户换机恢复了未修复的旧日志快照，仍需按第五节跑 v2 修复脚本。
+
+### L2 备忘（若未来上游支持 ignorable）
+
+即便上游哪天给 `append()` 加了 ignorable 透传，也**不建议**恢复会话事件落盘——实时状态不属于持久日志。本节分析保留作决策依据。
 
 ---
 
