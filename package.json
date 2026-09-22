@@ -25,7 +25,8 @@
   "scripts": {
     "test": "node --test \"tests/**/*.test.mjs\"",
     "test:reasoning": "node test-model-reasoning.mjs",
-    "prepack": "npm test"
+    "prepack": "npm test",
+    "verify:matrix": "node scripts/verify-dsh-matrix.mjs"
   },
   "engines": {
     "node": ">=22"
