@@ -42,7 +42,8 @@ Right: the "统一模型路由" settings panel — candidate chains per plan wit
 | Three tiers + manual tier | Per-plan `tier1` light · `tier2` standard · `tier3` powerful, auto-selected by `purpose` with downgrade; per-session manual tier in the chat window |
 | Reasoning effort | Per-candidate `reasoningEffort`, prechecked with a real request at save time — only host-accepted levels allowed |
 | Tier names | Per-plan custom tier display names (`routes.<id>.tierNames`), click-to-rename colored capsules, synced to the chat plan menu |
-| Model capability write-back | Edit custom-provider model capabilities (reasoning effort / contextWindow / maxTokens) in the panel, written back to the host `llm-pi-ai`, hot-reloaded |
+| Model capability write-back | Edit configured-provider model capabilities (reasoning effort / contextWindow / maxTokens / **input types** text·image) in the panel, written back to the host `llm-pi-ai`, hot-reloaded |
+| Provider request headers | Per-provider custom request headers (`headers`), fixing OpenCode Go's `MissingSessionID` (missing `x-opencode-session`) and similar routing requirements, hot-reloaded |
 | Management panel | Built-in 模型路由 card in DSH Settings with route stats / cooldown / health / capability editing, auto-save; live routing status in the chat toolbar |
 | UI language | Panel copy goes through the host locale registry (`model-router` namespace) with shipped zh/en dictionaries and reload-free switching; third-party language packs can register more languages for the same namespace |
 | Session safety | Recoverable route events, automatic `replayState` sanitization across providers |

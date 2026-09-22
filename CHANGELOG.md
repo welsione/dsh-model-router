@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.11 (2026-09-11)
+
+- **新功能 - 模型输入类型（input modalities）写回**：设置面板「模型能力」卡片每个模型新增「输入类型」胶囊组——`文本 / 图片` 可自由勾选，写回 llm-pi-ai `models[].input` 后热重载生效（pi-ai 按声明判定是否接受图片请求，未声明 image 的模型收到图片输入直接报 `UNSUPPORTED_CONTENT`）。**视频**选项展示但禁用（宿主 llm-pi-ai 目录 `MODALITIES` 仅 text/image，写入会被宿主 schema 拒绝），待宿主支持后开放；全部取消勾选 = 清除声明（回退供应商默认/目录），未声明时以宿主目录解析的**当前生效值**初始化（`resolveModelInfo().inputModalities`，GET 响应新增 `resolvedInput`）。
+- **新功能 - 供应商请求头（headers）编辑器**：每个供应商卡片新增「请求头」编辑器（名称/值行编辑 + 增删），写回 llm-pi-ai `providers.<id>.headers`，附加到该供应商的每个请求——**解决 OpenCode Go（Console Go）`MissingSessionID` 报错**（"Request is missing x-opencode-session"）：添加 `x-opencode-session = 任意固定非空值` 即可。校验与宿主对齐（Fetch Headers 可接受、单行值），`user-agent` 由宿主 attribution 管理直接拒绝；整组走 `settings.mutate` set/unset（update 的深合并无法删除已配置的键），空 dict 保存 = 删除 `headers` 字段。
+- **改进 - 能力编辑覆盖所有已配置供应商**：此前仅开放 hand-declared（`declared === true`）供应商，`opencode-go`/`zai-coding-cn` 这类**在 pi-ai 内置目录中**但已配置路由的供应商被排除——恰是用户最需要编辑的主供应商。现覆盖 `llm-pi-ai` 配置里的全部供应商；目录供应商显示「目录」徽章（编辑的是配置覆盖项，语义同 `modelOverrides`）。GET 响应新增 `providerHeaders`/`declared` 字段。
+- **修复 - 能力保存对未配置思考级别的模型必然失败**：保存补丁总是携带草稿的 `reasoningEfforts`（未配置时为 `{}`），宿主 `assertServiceable` 严格校验对空档位集报 "has an empty reasoningEfforts"——即对没配过档位的模型，改个 `contextWindow` 都会保存失败。现空档位集不写该字段；用户显式清空已声明档位时写 `null`（服务端删除字段，回退目录能力）。服务端 `applyModelCapabilityPatch` 同样把 `{}` 视为删除，双保险。
+- **测试**：新增 15 项纯函数单测（`sanitizeRequestHeaders`/`sanitizeInputModalities`/`applyModelCapabilityPatch`）+ 1 项真实 `apply(ctx)` 冒烟测试（模拟宿主 settings/llm/webServer，覆盖 GET 全量字段、input/headers 写回、`null` 删除、video/非法头/未配置供应商拒绝、其余字段不破坏），60 项全过。
+
 ## 0.0.10 (2026-09-11)
 
 - **修复 - DSH 0.1.5 下对话窗口组件全部消失（套餐选择器 + 路由状态徽章）**：0.1.5 的 `modelDirectories.directoryFor` 内部访问 `sessions.scope/binding` → `remote.session` 服务，而 entry inject 在插件 fiber 上执行、受 cordis 注入声明权限约束——插件 root inject 组未声明 `remote.session`，`directoryFor` 抛 `cannot get property "remote.session" without inject`，entry 被 slots 系统静默摘除（渲染期abdicate）：single 槽 `conversation.input.model` 被原生模型选择器顶回，list 槽 `conversation.input.left` 留下死行。修复：root inject 组补声明 `remote` / `remote.session`（对齐第一方 `dsh-client-ui-model-selection` 的注入面）；另给 PackageSelect 加 directory 为 null 时的空 store 兜底。已在 DSH 0.1.5-rc.1 实测：套餐选择器与路由徽章恢复渲染、44 项单测全过。

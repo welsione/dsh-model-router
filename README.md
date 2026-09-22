@@ -40,7 +40,8 @@ dsh plugin --profile web add @welsione/dsh-model-router
 | 三档分级 + 手动档位 | 每套餐 `tier1` 轻量 · `tier2` 标准 · `tier3` 强大，按 `purpose` 自动选档、档空逐级降档；对话窗口可**会话级手动选档** |
 | 思考级别 | 每候选可配 `reasoningEffort`，保存时实际请求预检，只允许宿主真正支持的档位 |
 | 档位名称 | 每套餐独立自定义档位显示名（`routes.<id>.tierNames`），彩色胶囊点击即改名，对话窗口同步展示 |
-| 模型能力写回 | 管理面板可编辑自定义供应商模型能力（思考级别档位/contextWindow/maxTokens）并写回宿主 `llm-pi-ai`，热重载生效 |
+| 模型能力写回 | 管理面板可编辑已配置供应商的模型能力（思考级别档位/contextWindow/maxTokens/**输入类型** 文本·图片）并写回宿主 `llm-pi-ai`，热重载生效 |
+| 供应商请求头 | 每供应商可配自定义请求头（`headers`），解决 OpenCode Go 等路由要求 `x-opencode-session` 报 `MissingSessionID` 的问题，热重载生效 |
 | 管理面板 | DSH 设置页内置「模型路由」卡片，路由统计/冷却/健康度/能力编辑，修改自动保存；对话窗口套餐选择器实时路由状态 |
 | 界面语言 | 面板文案经宿主 locale 注册表（`model-router` 命名空间）提供 zh/en 双语，跟随界面语言免刷新切换；第三方语言包可对同一命名空间补充翻译 |
 | 会话安全 | 会话事件可恢复、跨 provider 自动清洗 `replayState` |

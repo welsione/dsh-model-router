@@ -21,6 +21,10 @@ import {
   estimateMessageTokens,
   estimateRequestTokens,
   filterChainByContext,
+  sanitizeRequestHeaders,
+  sanitizeInputModalities,
+  applyModelCapabilityPatch,
+  INPUT_MODALITIES,
 } from '../lib/core.mjs'
 
 const cand = (provider, model, reasoningEffort) => {
@@ -403,3 +407,107 @@ test('filterChainByContext: margin/reserve defaults are safe', () => {
   assert.equal(kept2.length, 0)
 })
 
+
+// ============================================================
+// 模型能力写回（模型能力与请求头卡片）
+// ============================================================
+
+test('INPUT_MODALITIES: 与宿主 llm-pi-ai 目录一致（text/image；video 待宿主支持）', () => {
+  assert.deepEqual(INPUT_MODALITIES, ['text', 'image'])
+})
+
+test('sanitizeRequestHeaders: 合法头原样通过（新 dict，不改入参）', () => {
+  const r = sanitizeRequestHeaders({ 'x-opencode-session': 'dsh', 'x-custom': 'a b' })
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.headers, { 'x-opencode-session': 'dsh', 'x-custom': 'a b' })
+})
+
+test('sanitizeRequestHeaders: 空 dict 合法（= 清除全部）', () => {
+  const r = sanitizeRequestHeaders({})
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.headers, {})
+})
+
+test('sanitizeRequestHeaders: 拒绝非对象 / 数组', () => {
+  assert.equal(sanitizeRequestHeaders(null).ok, false)
+  assert.equal(sanitizeRequestHeaders('x: y').ok, false)
+  assert.equal(sanitizeRequestHeaders(['a']).ok, false)
+})
+
+test('sanitizeRequestHeaders: 拒绝空名称 / 首尾空格名称', () => {
+  assert.equal(sanitizeRequestHeaders({ '': 'v' }).ok, false)
+  assert.equal(sanitizeRequestHeaders({ ' x-a ': 'v' }).ok, false)
+})
+
+test('sanitizeRequestHeaders: 拒绝非法值（换行等 Fetch 不接受的值）', () => {
+  const r = sanitizeRequestHeaders({ 'x-a': 'line1\nline2' })
+  assert.equal(r.ok, false)
+  assert.match(r.error, /x-a/)
+})
+
+test('sanitizeRequestHeaders: 拒绝 user-agent（宿主 attribution 管理覆盖）', () => {
+  assert.equal(sanitizeRequestHeaders({ 'user-agent': 'x' }).ok, false)
+  assert.equal(sanitizeRequestHeaders({ 'User-Agent': 'x' }).ok, false)
+})
+
+test('sanitizeInputModalities: null / 空数组 → 清除声明 (null)', () => {
+  assert.deepEqual(sanitizeInputModalities(null), { ok: true, value: null })
+  assert.deepEqual(sanitizeInputModalities([]), { ok: true, value: null })
+})
+
+test('sanitizeInputModalities: 合法模态去重保序', () => {
+  assert.deepEqual(sanitizeInputModalities(['image', 'text', 'image']), { ok: true, value: ['image', 'text'] })
+})
+
+test('sanitizeInputModalities: 拒绝未知模态（video 等）与非数组', () => {
+  const r = sanitizeInputModalities(['text', 'video'])
+  assert.equal(r.ok, false)
+  assert.match(r.error, /text\/image/)
+  assert.equal(sanitizeInputModalities('text').ok, false)
+})
+
+test('applyModelCapabilityPatch: 更新数字字段（正整数校验）', () => {
+  const models = [{ id: 'm1', contextWindow: 1000 }, { id: 'm2' }]
+  const r = applyModelCapabilityPatch(models, 'm1', { contextWindow: 2048 })
+  assert.equal(r.ok, true)
+  assert.equal(r.models[0].contextWindow, 2048)
+  assert.equal(r.models[1].contextWindow, undefined)
+  assert.equal(models[0].contextWindow, 1000) // 入参不被修改
+  assert.equal(applyModelCapabilityPatch(models, 'm1', { contextWindow: -5 }).ok, false)
+  assert.equal(applyModelCapabilityPatch(models, 'm1', { contextWindow: 1.5 }).ok, false)
+})
+
+test('applyModelCapabilityPatch: input 写入 / null 清除声明', () => {
+  const models = [{ id: 'm1', input: ['text'] }]
+  const r = applyModelCapabilityPatch(models, 'm1', { input: ['text', 'image'] })
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.models[0].input, ['text', 'image'])
+  const r2 = applyModelCapabilityPatch(r.models, 'm1', { input: null })
+  assert.equal(r2.ok, true)
+  assert.equal('input' in r2.models[0], false) // 字段被删除（回退目录）
+})
+
+test('applyModelCapabilityPatch: reasoningEfforts 空对象视同清除（修复旧版写 {} 被宿主拒绝）', () => {
+  const models = [{ id: 'm1', reasoningEfforts: { off: null, high: 'high' } }]
+  const r = applyModelCapabilityPatch(models, 'm1', { reasoningEfforts: {} })
+  assert.equal(r.ok, true)
+  assert.equal('reasoningEfforts' in r.models[0], false)
+  const r2 = applyModelCapabilityPatch(models, 'm1', { reasoningEfforts: { off: null, high: 'high' } })
+  assert.deepEqual(r2.models[0].reasoningEfforts, { off: null, high: 'high' })
+})
+
+test('applyModelCapabilityPatch: 目标模型不存在 / 非法字段 / patch 形态报错', () => {
+  const models = [{ id: 'm1' }]
+  assert.match(applyModelCapabilityPatch(models, 'nope', { contextWindow: 1 }).error, /nope/)
+  assert.equal(applyModelCapabilityPatch(models, 'm1', { bogus: 1 }).ok, false)
+  assert.equal(applyModelCapabilityPatch(models, 'm1', null).ok, false)
+  assert.equal(applyModelCapabilityPatch('x', 'm1', {}).ok, false)
+})
+
+test('applyModelCapabilityPatch: 只改目标项，保留其余项与未知字段', () => {
+  const models = [{ id: 'm1', custom: 'keep' }, { id: 'm2', custom: 'keep2' }]
+  const r = applyModelCapabilityPatch(models, 'm2', { maxTokens: 4096 })
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.models[0], { id: 'm1', custom: 'keep' })
+  assert.deepEqual(r.models[1], { id: 'm2', custom: 'keep2', maxTokens: 4096 })
+})
