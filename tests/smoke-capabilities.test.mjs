@@ -269,6 +269,8 @@ function makeSettingsFormsHost(initial, onSectionChanged) {
   }
   const volatileUpdateHandlers = []
   return {
+    // SettingsForms 能力标记（0.1.7 路径判定依据：有 configure、无 installSection）
+    configure(presentation, owner) { void presentation; void owner },
     volatileUpdateHandlers,
     describe: () => [
       // 0.1.7 形状：ns = entry id；user = 覆盖层（可能为空对象）；value = 生效值
@@ -375,3 +377,57 @@ console.log('[0.1.7] POST manualTier ok:', JSON.stringify(resTier.body))
 
 // 卸载链路不炸（cleanup effect）
 console.log('\n[0.1.7 路径] 全部冒烟断言通过 ✅')
+
+// ============================================================
+// 回归锁定：0.1.5-rc.2 宿主 + Config 导出（volatile）→ cordis 会把第二参
+// 解析成 ref-store，但 settings 机制仍是 installSection——必须走旧路径注册
+// 命名空间，否则所有写操作报 "settings namespace is not registered"。
+// ============================================================
+{
+  const registered = []
+  let savedSection = null
+  const host15 = {
+    installSection(_owner, ns, _schema, entry, hooks) {
+      registered.push(ns)
+      savedSection = entry
+      hooks.setSource(() => savedSection)
+      hooks.onChange?.()
+      return { get: () => savedSection }
+    },
+    describe: () => [{ ns: 'llm-pi-ai', user: store.get() }],
+    async mutate(_ns, ops) { store.mutate(ops); assertServiceable(store.get()); return store.get() },
+    async update(_ns, patch) { store.update(patch); assertServiceable(store.get()); return store.get() },
+  }
+  const handlers15 = {}
+  const config15 = makeRefStore({ enabled: true }) // cordis 解析出的 ref-store
+  assert.equal(typeof config15.enabled?.get, 'function', 'ref-store 形态自检')
+
+  const ctx15 = {
+    logger: { info() {}, warn() {}, error() {}, debug() {} },
+    settings: host15,
+    llm: {
+      listProviders: () => [{ id: 'opencode-go' }],
+      listConfigurableProviders: () => [{ provider: 'opencode-go', declared: false }],
+      listModels: async () => [],
+      resolveModelInfo: async (p, m) => { const b = (CATALOG[p] ?? {})[m]; return { provider: p, id: m, name: m, inputModalities: b ? [...b.input] : null } },
+      resolveCallConfig: async () => ({}),
+    },
+    webServer: { register: (route) => { handlers15[route.path] = route.handler } },
+    on() { return () => {} },
+    inject(groups, cb) { cb({ settings: host15, effect: (fn) => { const d = fn(); void d } }) },
+    effect(fn) { const d = fn(); void d },
+  }
+
+  apply(ctx15, config15) // 第二参是 ref-store（0.1.5-rc.2 cordis 行为）
+
+  // 关键断言：走了旧路径——命名空间已注册 + 走的是 installSection
+  assert.deepEqual(registered, ['model-router'], '必须调用 installSection 注册 model-router 命名空间')
+  assert.ok(handlers15['/api/model-router/state'], '面板 API 已注册')
+
+  // 写链路可用（save → settings.replace → 注册过的命名空间）
+  const h15 = handlers15['/api/model-router/model-capabilities']
+  const res15 = mockRes()
+  await h15(mockReq('POST', { provider: 'opencode-go', patch: { headers: { 'x-opencode-session': 'v015' } } }), res15)
+  assert.equal(res15.code, 200, '写回应成功: ' + JSON.stringify(res15.body))
+  console.log('[0.1.5+refs 回归] installSection 注册 + 写回 ok ✅')
+}
