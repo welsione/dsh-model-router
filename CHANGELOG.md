@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.12 (2026-09-23)
+
+- **兼容 - DSH 0.1.7-alpha.1（settings 表单机制 / SettingsForms）**：0.1.7 重构了 settings 接入——`installSection`/`installSettingsSection` 全部移除，宿主按插件**命名导出的 `Config` schema** 自动派生配置段（ns = entry id），`apply(ctx, config)` 第二参变为响应式 store（volatile 字段是 `{get}` ref）。适配三点：
+  - Config schema 提升为模块级命名导出，全部顶层字段标 `.volatile()`（= 可热编辑：面板保存原地更新 ref 并发 `loader/volatile-update`，不重启插件；也只有 volatile 路径可被 settings.update/mutate 写入）。内部另备无 volatile 的 `PlainConfig` 供旧宿主 installSection 与自身 resolve（否则新 schemastery 会把 resolve 结果包成 ref 破坏旧路径）。
+  - `apply(ctx, config)` 双路径检测：`config` 字段带 `.get` → 0.1.7 分支（读 ref + 订阅 `loader/volatile-update` + `settings.configure({auto:false})` 避免自动表单页与自注入面板重复）；否则走原 installSectionCompat。
+  - `cordis.patch.yml` entry id `dsh-model-router` → `model-router`（= settings ns 不变，且 0.1.7 对老 `settings.yaml` 各段的自动迁移按段名匹配 entry id 才能命中，存量路由/手动档位无缝升级）。
+  - 依赖 `@deepseek-ai/schemastery` ^3.18.1 → **^3.18.3**（3.18.3 起有 `.volatile()`，配套 cosmokit ^1.8.4；旧宿主下多余 meta 无害）。`llmRawConfig` 兼容 0.1.7 describe 形状（user=profile 覆盖层可能为空对象，非空才优先，否则回退生效值）。
+  - 实测（`npm run verify:matrix`）：**0.1.7-alpha.1 L4 14 checks + L5 8 项全过**（含面板 API 全读写、0.1.7 的 token→cookie 认证）；0.1.5-rc.2 回归全过。注意 0.1.7 配置存储从 settings.yaml 迁至 profile patch（宿主行为），首次启动自动迁移，老 YAML 改名 `.imported` 保留。
+- **测试**：smoke 测试新增 0.1.7 场景——SettingsForms 形态 settings（无 installSection）+ ref-store config + 「写 settings → ref 更新 → 事件 → 插件同步」完整时序（对齐宿主 `_commitVolatile`），双路径全绿。
+
 ## 0.0.11 (2026-09-11)
 
 - **新功能 - 模型输入类型（input modalities）写回**：设置面板「模型能力」卡片每个模型新增「输入类型」胶囊组——`文本 / 图片` 可自由勾选，写回 llm-pi-ai `models[].input` 后热重载生效（pi-ai 按声明判定是否接受图片请求，未声明 image 的模型收到图片输入直接报 `UNSUPPORTED_CONTENT`）。**视频**选项展示但禁用（宿主 llm-pi-ai 目录 `MODALITIES` 仅 text/image，写入会被宿主 schema 拒绝），待宿主支持后开放；全部取消勾选 = 清除声明（回退供应商默认/目录），未声明时以宿主目录解析的**当前生效值**初始化（`resolveModelInfo().inputModalities`，GET 响应新增 `resolvedInput`）。

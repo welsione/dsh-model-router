@@ -50,7 +50,7 @@ Right: the "统一模型路由" settings panel — candidate chains per plan wit
 
 ## Compatibility
 
-- DSH `0.1.0-rc.x` – `0.1.5-rc.x` (verified on `0.1.5-rc.1`; compatible with the `settings.installSection` API introduced in 0.1.2) · Node.js ≥ 22 (React 18/19) · Last verified 2026-09-11.
+- DSH `0.1.0-rc.x` – `0.1.7-alpha.1` (verified on `0.1.5-rc.2` and `0.1.7-alpha.1`; three generations of the settings API auto-detected — 0.1.7 uses the `Config` named export + volatile form mechanism) · Node.js ≥ 22 (React 18/19) · Last verified 2026-09-23. Multi-version matrix verification: `npm run verify:matrix` (see [docs/verify-matrix-0.0.11.md](docs/verify-matrix-0.0.11.md)).
 
 ## Install / Uninstall
 

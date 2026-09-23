@@ -73,15 +73,18 @@ function waitForPort(portNo, timeoutMs) {
     step()
   })
 }
-const api = (base, p, method = 'GET', body) => {
+const api = (base, p, method = 'GET', body, cookie) => {
   const u = new URL(base)
   u.pathname = p // 保留 query（如 ?token=…），仅替换路径
   return fetch(u, {
     method,
-    headers: body !== undefined ? { 'content-type': 'application/json' } : undefined,
+    headers: {
+      ...(cookie ? { cookie } : {}),
+      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(10000),
-  }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }))
+  }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null), headers: r.headers }))
 }
 
 const waitForExit = (child, ms) => new Promise((res) => {
@@ -171,15 +174,25 @@ async function runL5(version, dshBin, tarball, root) {
 
   if (!up || !baseUrl) { tryKill(child); return }
 
+  // 认证：0.1.7 起 web 有浏览器认证——GET /?token=… 会 303 种下签名 cookie，
+  // 之后 API 请求必须带 cookie（仅 query token 对 /api 无效，会 401）。老版本无认证，
+  // 该请求返回 200 也没有 set-cookie，cookie 变量保持 undefined，行为不变。
+  let cookie
+  try {
+    const r = await fetch(baseUrl, { redirect: 'manual', signal: AbortSignal.timeout(10000) })
+    const setCookie = r.headers.get('set-cookie')
+    if (setCookie) cookie = setCookie.split(';')[0]
+  } catch { /* 无认证版本：忽略 */ }
+
   const p = (s) => JSON.stringify(s)
   try {
     // 1. GET state
-    const st = await api(baseUrl, '/api/model-router/state')
+    const st = await api(baseUrl, '/api/model-router/state', 'GET', undefined, cookie)
     add(version, 'L5', 'state', st.status === 200 && st.body?.ok === true,
       st.status === 200 ? `ok=true，routes=${Object.keys(st.body?.config?.routes ?? {}).length}` : `HTTP ${st.status}`)
 
     // 2. GET model-capabilities：新字段齐全（providerHeaders/declared/resolvedInput）
-    const caps0 = await api(baseUrl, '/api/model-router/model-capabilities')
+    const caps0 = await api(baseUrl, '/api/model-router/model-capabilities', 'GET', undefined, cookie)
     const newFields = caps0.body && ['capabilities', 'providerHeaders', 'declared', 'resolvedInput'].every(k => k in caps0.body)
     add(version, 'L5', 'caps.get', caps0.status === 200 && caps0.body?.ok === true && newFields,
       caps0.status === 200
@@ -189,7 +202,7 @@ async function runL5(version, dshBin, tarball, root) {
     // 3. POST 请求头写回（MissingSessionID 场景）+ GET 回读 + settings.yaml 落盘证据
     const hv = `verify-${version.replace(/[^\w.-]/g, '-')}`
     const h1 = await api(baseUrl, '/api/model-router/model-capabilities', 'POST', { provider: 'opencode-go', patch: { headers: { 'x-opencode-session': hv } } })
-    const caps1 = await api(baseUrl, '/api/model-router/model-capabilities')
+    const caps1 = await api(baseUrl, '/api/model-router/model-capabilities', 'GET', undefined, cookie)
     const hdrOk = h1.status === 200 && caps1.body?.providerHeaders?.['opencode-go']?.['x-opencode-session'] === hv
     const yaml1 = readSettingsYaml(home)?.['llm-pi-ai']?.providers?.['opencode-go']?.headers?.['x-opencode-session']
     add(version, 'L5', 'caps.headers', hdrOk, `POST=${h1.status}，GET 回读=${p(caps1.body?.providerHeaders?.['opencode-go'])}${yaml1 ? `，settings.yaml 落盘=${p(yaml1)}` : '（settings.yaml 证据未取到，以回读为准）'}`)
@@ -207,12 +220,17 @@ async function runL5(version, dshBin, tarball, root) {
     const v1 = await api(baseUrl, '/api/model-router/model-capabilities', 'POST', { provider: 'opencode-go', model: 'deepseek-v4-flash', patch: { input: ['video'] } })
     add(version, 'L5', 'caps.video_rejected', v1.status === 400, `HTTP ${v1.status}，error=${p(v1.body?.error)}`)
 
-    // 6. 其余字段不破坏：headers 写回后 apiKeyEnv/models 仍在（settings.yaml 证据 + GET 回读）
+    // 6. 其余字段不破坏：headers 写回后 models/apiKeyEnv 仍在。
+    //    证据优先级：settings.yaml（0.1.0～0.1.5 存储面）→ GET capabilities 回读。
+    //    0.1.7 起配置存储迁到 profile patch（settings.yaml 被宿主改名 .imported），
+    //    yaml 证据取不到属预期，以 GET 回读为准（回读本身经过完整 settings 链路）。
     const prov = caps1.body?.capabilities?.['opencode-go']
     const yamlProv = readSettingsYaml(home)?.['llm-pi-ai']?.providers?.['opencode-go']
+    const provOk = Array.isArray(prov) && prov.length === 1 && prov[0]?.id === 'deepseek-v4-flash'
+    const yamlOk = yamlProv === undefined || (Array.isArray(yamlProv?.models) && yamlProv.models.length === 1 && yamlProv.apiKeyEnv === 'OPENCODE_GO_API_KEY')
     add(version, 'L5', 'caps.no_side_effect',
-      Array.isArray(prov) && prov.length === 1 && Array.isArray(yamlProv?.models) && yamlProv.models.length === 1 && yamlProv.apiKeyEnv === 'OPENCODE_GO_API_KEY',
-      `GET capabilities=${p(prov?.length)} 个模型；yaml models=${p(yamlProv?.models?.length)}，apiKeyEnv=${p(yamlProv?.apiKeyEnv)}`)
+      provOk && yamlOk,
+      `GET 回读 models=${p(prov?.length)}（id=${p(prov?.[0]?.id)}）${yamlProv ? `；yaml models=${p(yamlProv?.models?.length)}，apiKeyEnv=${p(yamlProv?.apiKeyEnv)}` : '；yaml 证据不存在（0.1.7+ 配置存 profile patch，以回读为准）'}`)
   } catch (e) {
     add(version, 'L5', 'probe', false, `探测异常: ${String(e && e.message || e)}`)
   } finally {

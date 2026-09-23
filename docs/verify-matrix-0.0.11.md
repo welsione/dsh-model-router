@@ -50,3 +50,23 @@ npm run verify:matrix -- --keep                # 保留临时目录排障
 
 - 新增的 **input 写回 / 请求头写回（MissingSessionID 解法）/ null 删除 / video 拒绝** 在全部受支持宿主版本上实测可用（含 settings.yaml 落盘与热重载无副作用）。
 - 兼容性声明维持「DSH 0.1.0-rc.x ～ 0.1.5-rc.2」；0.1.5-rc.3 因上游坏发布不可安装（非插件问题）；0.1.7 需待其 API 定型后适配（已记录于 TODO）。
+
+---
+
+## 0.0.12 附录 — 0.1.7-alpha.1 兼容适配（2026-09-23）
+
+0.0.11 矩阵发现 0.1.7-alpha.1 不兼容（宿主 settings 架构重构）。0.0.12 完成适配并复测：
+
+| DSH 版本 | L4 运行级 | L5 面板 API | 结论 |
+|---|---|---|---|
+| 0.1.7-alpha.1 | ✅ PASS（14 checks） | ✅ 8/8 | **通过** |
+| 0.1.5-rc.2（回归） | ✅ PASS（14 checks） | ✅ 8/8 | **通过** |
+
+适配要点（详见 CHANGELOG 0.0.12）：
+
+1. **Config 命名导出 + 全字段 `.volatile()`**：0.1.7 宿主自动按 `plugin.Config` 派生配置段（ns = entry id）；volatile 字段是热编辑面——面板保存原地更新 ref 并发 `loader/volatile-update`（不重启插件），且 settings.update/mutate 只接受 volatile 路径。
+2. **apply 双路径**：第二参字段带 `.get`（0.1.7 ref-store）→ 读 ref + 订阅 volatile-update + `settings.configure({auto:false})`；否则走 installSectionCompat（0.1.0～0.1.5）。
+3. **entry id `dsh-model-router` → `model-router`**：0.1.7 首启会把老 settings.yaml 各段按段名迁移到同 id 的 entry——id 与 settings ns 一致才能命中，存量配置无缝升级。
+4. **依赖**：`@deepseek-ai/schemastery` ^3.18.3（`.volatile()` 起始版本，配套 cosmokit ^1.8.4）。
+
+0.1.7 行为差异备注：配置存储从 `settings.yaml` 迁至 profile patch（宿主行为，首启自动迁移，老文件改名 `settings.yaml.imported`）；web 面板 API 有浏览器认证（`?token=` 访问换签名 cookie，query token 对 `/api/*` 无效）——矩阵 L5 已加 cookie 交换。老 YAML 中若含已废弃字段（如 0.0.7 的 `routeEventPersistence`），宿主的严格迁移会跳过该段并在日志告警（数据保留在 `.imported` 文件），重新保存面板配置即可。

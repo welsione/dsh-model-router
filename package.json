@@ -1,6 +1,6 @@
 {
   "name": "@welsione/dsh-model-router",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "publishConfig": {
     "access": "public"
   },
@@ -47,7 +47,7 @@
     "url": "https://github.com/welsione/dsh-model-router.git"
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "^3.18.1"
+    "@deepseek-ai/schemastery": "^3.18.3"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.1 <5.0.0-0",

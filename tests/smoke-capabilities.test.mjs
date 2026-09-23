@@ -214,4 +214,164 @@ assert.equal(finalProv.apiKeyEnv, 'OPENCODE_GO_API_KEY')
 assert.equal(finalProv.models.length, 2)
 assert.equal(finalProv.models[0].contextWindow, 1000000)
 console.log('最终 opencode-go 配置:', JSON.stringify(finalProv))
-console.log('\n全部冒烟断言通过 ✅')
+console.log('\n[旧宿主路径] 全部冒烟断言通过 ✅')
+
+// ============================================================
+// DSH 0.1.7+ 路径：SettingsForms（无 installSection）+ ref-store config
+// ============================================================
+import { Config } from '../lib/index.js'
+
+// volatile ref：{ get } ——对齐宿主 resolveConfig 后的形态。
+// refStore 的 values 是共享对象：宿主 _commitVolatile 先更新 ref 值再发事件，
+// mock 用 __syncFrom 模拟这一时序（写 settings → 更新 ref → 事件 → 插件同步）。
+function makeRefStore(raw) {
+  const resolved = Config(raw ?? {}) // 校验 + 默认值（volatile 字段 → ref）
+  const values = {}
+  for (const [k, v] of Object.entries(resolved)) values[k] = typeof v?.get === 'function' ? v.get() : v
+  const store = {}
+  for (const k of Object.keys(values)) store[k] = { get: () => values[k] }
+  store.__syncFrom = (section) => {
+    for (const k of Object.keys(values)) if (k in section) values[k] = JSON.parse(JSON.stringify(section[k]))
+  }
+  return store
+}
+
+// 0.1.7 形态的 settings：无 installSection；describe 返回 entry 形状；
+// mutate/update 仅写入 store（volatile 校验由真实宿主做，此处模拟存储面）
+function makeSettingsFormsHost(initial, onSectionChanged) {
+  let section = JSON.parse(JSON.stringify(initial)) // model-router 段
+  const llmStore = makeLlmPiAiStore(initialLlmPiAi)
+  const merge = (under, over) => {
+    if (over === undefined) return under
+    if (under === null || over === null || typeof under !== 'object' || typeof over !== 'object' || Array.isArray(under) || Array.isArray(over)) return over
+    const merged = { ...under }
+    for (const [k, v] of Object.entries(over)) merged[k] = k in merged ? merge(merged[k], v) : v
+    return merged
+  }
+  const applyOp = (cur, op) => {
+    const [head, ...rest] = op.path
+    if (head === undefined) return op.op === 'unset' ? {} : { ...op.value }
+    if (rest.length === 0) {
+      if (op.op === 'set') return { ...cur, [head]: op.value }
+      const { [head]: _drop, ...kept } = cur
+      return kept
+    }
+    const child = cur[head]
+    if (child === null || typeof child !== 'object' || Array.isArray(child)) {
+      if (op.op === 'unset') return cur
+      return { ...cur, [head]: applyOp({}, { ...op, path: rest }) }
+    }
+    return { ...cur, [head]: applyOp(child, { ...op, path: rest }) }
+  }
+  const commit = () => {
+    if (typeof onSectionChanged === 'function') onSectionChanged(JSON.parse(JSON.stringify(section))) // 先更新 ref（对齐 _commitVolatile 时序）
+    volatileUpdateHandlers.forEach((fn) => fn()) // 再发事件
+  }
+  const volatileUpdateHandlers = []
+  return {
+    volatileUpdateHandlers,
+    describe: () => [
+      // 0.1.7 形状：ns = entry id；user = 覆盖层（可能为空对象）；value = 生效值
+      { ns: 'llm-pi-ai', user: llmStore.get(), value: llmStore.get(), base: {} },
+      { ns: 'model-router', user: JSON.parse(JSON.stringify(section)), value: JSON.parse(JSON.stringify(section)), base: {} },
+    ],
+    async mutate(ns, ops) {
+      if (ns === 'llm-pi-ai') {
+        llmStore.mutate(ops)
+        assertServiceable(llmStore.get())
+      } else if (ns === 'model-router') {
+        section = ops.reduce(applyOp, section)
+      } else throw new Error(`No configurable plugin entry "${ns}"`)
+      commit()
+      return { section }
+    },
+    async update(ns, patch) {
+      if (ns === 'llm-pi-ai') {
+        llmStore.update(patch)
+        assertServiceable(llmStore.get())
+      } else if (ns === 'model-router') {
+        section = merge(section, patch)
+      } else throw new Error(`No configurable plugin entry "${ns}"`)
+      commit()
+      return { section }
+    },
+  }
+}
+
+const handlers17 = {}
+// 宿主传入的 entry config（原始值），经 Config schema resolve 后 volatile 字段变 ref；
+// ref 值随 settings 写入同步（对齐 _commitVolatile 时序）
+const config17 = makeRefStore({ enabled: true, routes: { 'deepseek-v4-flash': { tier2: [{ provider: 'opencode-go', model: 'deepseek-v4-flash' }] } } })
+const host17 = makeSettingsFormsHost(
+  { enabled: true, routes: { 'deepseek-v4-flash': { tier2: [{ provider: 'opencode-go', model: 'deepseek-v4-flash' }] } } },
+  (section) => config17.__syncFrom(section),
+)
+assert.equal(typeof config17.enabled?.get, 'function', '0.1.7 ref-store 形态自检')
+
+const ctx17 = {
+  logger: { info() {}, warn() {}, error() {}, debug() {} },
+  settings: host17,
+  llm: {
+    listProviders: () => [{ id: 'opencode-go' }],
+    listConfigurableProviders: () => [{ provider: 'opencode-go', declared: false }],
+    listModels: async () => [],
+    resolveModelInfo: async (provider, model) => {
+      const base = (CATALOG[provider] ?? {})[model]
+      return { provider, id: model, name: model, inputModalities: base ? [...base.input] : null }
+    },
+    resolveCallConfig: async () => ({}),
+  },
+  webServer: { register: (route) => { handlers17[route.path] = route.handler } },
+  on(event, fn) { if (event === 'loader/volatile-update') host17.volatileUpdateHandlers.push(fn); return () => {} },
+  inject(groups, cb) { cb({ settings: host17, effect: (fn) => { const d = fn(); void d } }) },
+  effect(fn) { const d = fn(); void d },
+  fiber: { state: 2 },
+}
+
+// 激活：必须走 0.1.7 分支（settings 无 installSection → 若误走旧路径会直接抛错）
+apply(ctx17, config17)
+assert.ok(handlers17['/api/model-router/model-capabilities'], '0.1.7 路径：面板 API 已注册')
+
+async function call17(method, body, url = '/api/model-router/model-capabilities') {
+  const handler = handlers17[url]
+  const res = mockRes()
+  const req = mockReq(method, body)
+  if (url !== '/api/model-router/model-capabilities') req.url = url
+  await handler(req, res)
+  return { code: res.code, body: res.body }
+}
+
+// GET state（走 ref-store 的 current()）
+const st17 = await call17('GET', undefined, '/api/model-router/state')
+assert.equal(st17.code, 200, 'state 应 200: ' + JSON.stringify(st17.body))
+assert.equal(st17.body.ok, true)
+assert.equal(st17.body.config.enabled, true, 'ref-store 读取 enabled')
+assert.deepEqual(Object.keys(st17.body.config.routes), ['deepseek-v4-flash'], 'ref-store 读取 routes')
+console.log('[0.1.7] GET state ok（ref-store 读取生效）')
+
+// GET capabilities：describe 的 user 层（非空）优先生效
+const caps17 = await call17('GET')
+assert.equal(caps17.code, 200)
+assert.deepEqual(caps17.body.providerHeaders['opencode-go'], {})
+console.log('[0.1.7] GET capabilities ok')
+
+// POST 请求头写回（llm-pi-ai mutate）→ GET 回读
+const ph17 = await call17('POST', { provider: 'opencode-go', patch: { headers: { 'x-opencode-session': 'v017' } } })
+assert.equal(ph17.code, 200, 'headers 写回: ' + JSON.stringify(ph17.body))
+assert.deepEqual(ph17.body.providerHeaders['opencode-go'], { 'x-opencode-session': 'v017' })
+console.log('[0.1.7] POST headers ok')
+
+// POST manualTiers 落地（/api/model-router/tier 走对自身 ns 的 mutate）
+const tierHandler = handlers17['/api/model-router/tier']
+const resTier = mockRes()
+await tierHandler({ method: 'POST', url: '/api/model-router/tier', on(ev, cb) { if (ev === 'data') cb(Buffer.from(JSON.stringify({ sessionId: 's1', tier: 'tier3' }))); if (ev === 'end') cb() } }, resTier)
+assert.equal(resTier.code, 200, 'manualTier 写回: ' + JSON.stringify(resTier.body))
+// 完整同步链路：写 settings → ref 更新 → volatile-update → 插件 Map 同步
+assert.equal(resTier.body.manual, 'tier3', '同步链路后 manual 应为 tier3（而非被空 ref 清成 auto）')
+// GET state 里 manualTiers 也应反映
+const st17b = await call17('GET', undefined, '/api/model-router/state')
+assert.equal(st17b.body.manualTiers.s1, 'tier3', 'state 回读 manualTiers')
+console.log('[0.1.7] POST manualTier ok:', JSON.stringify(resTier.body))
+
+// 卸载链路不炸（cleanup effect）
+console.log('\n[0.1.7 路径] 全部冒烟断言通过 ✅')
