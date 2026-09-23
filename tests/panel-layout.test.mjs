@@ -157,15 +157,20 @@ test('面板布局：默认折叠态 + 数据加载后的完整渲染', async ()
   for (const marker of ['统一模型路由', '冷却中的候选', '全局', '供应商模型能力与请求头', '最近事件']) {
     assert.ok(out.includes(marker), `应包含卡片标题「${marker}」`)
   }
-  // 折叠机制：card-body 容器存在（路由卡片展开 + 用户点击过的卡片）
-  assert.ok(out.includes('class=dsh-mr-card-body'), '展开的卡片应有 card-body 容器')
-  // 默认展开：路由编辑器（newRouteId 输入）可见
-  assert.ok(out.includes('class=dsh-mr-text'), '路由卡片默认展开（新建路由输入框可见）')
+  // 路由卡片为静态卡片（常驻展开）：无 card-body 折叠容器，直接渲染内容
+  assert.ok(!out.includes('class=dsh-mr-card-body'), '默认全部收起（无 card-body 容器）')
+  assert.ok(out.includes('class=dsh-mr-text'), '路由卡片常驻展开（新建路由输入框可见）')
+  // 分组标签
+  assert.ok(out.includes('配置') && out.includes('运行状态'), '分组标签存在')
   // 默认折叠：全局设置数字输入（cooldownMs 等）不出现
   assert.ok(!out.includes('>cooldownMs<'), '全局设置默认折叠（cooldownMs 标签不出现）')
   assert.ok(!out.includes('>冷却基础时长<') || !out.includes('cooldownMs'), '折叠内容不渲染')
   // 头部常驻：总开关在卡片头上（switch span 出现两次？不——常驻头部只有一处）
-  assert.ok(out.includes('dsh-mr-switch'), '总开关常驻卡片头')
+  assert.ok(out.includes('dsh-mr-switch'), '总开关在面板标题行（headrow 内）')
+  // 面板标题行的 headrow 内含开关（在 card 之前）
+  const headIdx = out.indexOf('dsh-mr-headrow')
+  const swIdx = out.indexOf('dsh-mr-switch')
+  assert.ok(headIdx >= 0 && swIdx > headIdx, '总开关位于面板标题行')
   // 分组标签与描述性头部（替代裸数字徽章）
   assert.ok(out.includes('配置') && out.includes('运行状态'), '分组标签存在')
   assert.ok(out.includes('供应商模型能力与请求头') && out.includes('个供应商'), '能力卡片头有描述')
