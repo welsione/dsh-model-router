@@ -166,8 +166,10 @@ test('面板布局：默认折叠态 + 数据加载后的完整渲染', async ()
   assert.ok(!out.includes('>冷却基础时长<') || !out.includes('cooldownMs'), '折叠内容不渲染')
   // 头部常驻：总开关在卡片头上（switch span 出现两次？不——常驻头部只有一处）
   assert.ok(out.includes('dsh-mr-switch'), '总开关常驻卡片头')
-  // 计数徽章：冷却 1 条 + 历史 2 条
-  assert.ok(out.includes('dsh-mr-count-badge'), '计数徽章存在')
+  // 分组标签与描述性头部（替代裸数字徽章）
+  assert.ok(out.includes('配置') && out.includes('运行状态'), '分组标签存在')
+  assert.ok(out.includes('供应商模型能力与请求头') && out.includes('个供应商'), '能力卡片头有描述')
+  assert.ok(out.includes('条路由事件'), '事件卡片头有描述')
   // chevron 图标存在（4 个折叠卡片）
   assert.ok(out.includes('IconDown'), '折叠卡片有 chevron')
 })
