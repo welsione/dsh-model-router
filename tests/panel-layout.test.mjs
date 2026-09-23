@@ -157,9 +157,9 @@ test('面板布局：默认折叠态 + 数据加载后的完整渲染', async ()
   for (const marker of ['统一模型路由', '冷却中的候选', '全局', '供应商模型能力与请求头', '最近事件']) {
     assert.ok(out.includes(marker), `应包含卡片标题「${marker}」`)
   }
-  // 路由卡片为静态卡片（常驻展开）：无 card-body 折叠容器，直接渲染内容
-  assert.ok(!out.includes('class=dsh-mr-card-body'), '默认全部收起（无 card-body 容器）')
-  assert.ok(out.includes('class=dsh-mr-text'), '路由卡片常驻展开（新建路由输入框可见）')
+  // 路由卡片默认展开（card-body 容器存在），其余卡片默认收起
+  assert.ok(out.includes('class=dsh-mr-card-body'), '展开的卡片应有 card-body 容器')
+  assert.ok(out.includes('class=dsh-mr-text'), '路由卡片默认展开（新建路由输入框可见）')
   // 分组标签
   assert.ok(out.includes('配置') && out.includes('运行状态'), '分组标签存在')
   // 默认折叠：全局设置数字输入（cooldownMs 等）不出现
