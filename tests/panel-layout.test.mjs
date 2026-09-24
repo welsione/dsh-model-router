@@ -149,12 +149,15 @@ test('面板布局：默认折叠态 + 数据加载后的完整渲染', async ()
   ps[1] = null    // s2 loadError
   ps[2] = STATE   // s3 data
   ps[3] = JSON.parse(JSON.stringify(STATE.config)) // s4 cfg
+  ps[10] = CAPS.capabilities  // s11 capabilities
+  ps[11] = true               // s12 capsWritable
+  ps[22] = { routes: true, caps: true }  // s24 openMap：展开路由与能力卡片
   el = slotRender()
   out = ''
   walk(el, 0)
 
   // ---- 结构断言 ----
-  for (const marker of ['统一模型路由', '冷却中的候选', '全局', '供应商模型能力与请求头', '最近事件']) {
+  for (const marker of ['统一模型路由', '冷却中的候选', '全局', '供应商管理', '最近事件']) {
     assert.ok(out.includes(marker), `应包含卡片标题「${marker}」`)
   }
   // 路由卡片默认展开（card-body 容器存在），其余卡片默认收起
@@ -173,7 +176,7 @@ test('面板布局：默认折叠态 + 数据加载后的完整渲染', async ()
   assert.ok(headIdx >= 0 && swIdx > headIdx, '总开关位于面板标题行')
   // 分组标签与描述性头部（替代裸数字徽章）
   assert.ok(out.includes('配置') && out.includes('运行状态'), '分组标签存在')
-  assert.ok(out.includes('供应商模型能力与请求头') && out.includes('个供应商'), '能力卡片头有描述')
+  assert.ok(out.includes('供应商管理') && out.includes('个供应商'), '卡片标题与描述存在')
   assert.ok(out.includes('条路由事件'), '事件卡片头有描述')
   // chevron 图标存在（4 个折叠卡片）
   assert.ok(out.includes('IconDown'), '折叠卡片有 chevron')
