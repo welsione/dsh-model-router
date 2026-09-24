@@ -220,6 +220,31 @@ async function runL5(version, dshBin, tarball, root) {
     const v1 = await api(baseUrl, '/api/model-router/model-capabilities', 'POST', { provider: 'opencode-go', model: 'deepseek-v4-flash', patch: { input: ['video'] } })
     add(version, 'L5', 'caps.video_rejected', v1.status === 400, `HTTP ${v1.status}，error=${p(v1.body?.error)}`)
 
+    // 5.5 供应商管理：新增（带 API Key 凭据）→ 出现在 capabilities → 删除
+    try {
+      const np = await api(baseUrl, '/api/model-router/providers', 'POST', {
+        id: 'verify-gw',
+        displayName: 'Matrix Verify Gateway',
+        api: 'openai-completions',
+        baseURL: 'https://verify.example.com/v1',
+        apiKey: 'sk-verify-' + version.replace(/[^a-z0-9.-]/gi, '-'),
+        models: [{ id: 'verify-model', contextWindow: 128000, maxTokens: 8192 }],
+      }, cookie)
+      const capsNP = await api(baseUrl, '/api/model-router/model-capabilities', 'GET', undefined, cookie)
+      const added = np.status === 200 && !!capsNP.body?.capabilities?.['verify-gw']
+      // 重复添加应 409
+      const dup = await api(baseUrl, '/api/model-router/providers', 'POST', {
+        id: 'verify-gw', models: [{ id: 'x' }],
+      }, cookie)
+      const del = await api(baseUrl, '/api/model-router/providers', 'DELETE', { id: 'verify-gw' }, cookie)
+      const capsDel = await api(baseUrl, '/api/model-router/model-capabilities', 'GET', undefined, cookie)
+      const gone = del.status === 200 && !capsDel.body?.capabilities?.['verify-gw']
+      add(version, 'L5', 'providers.crud', added && dup.status === 409 && gone,
+        `新增=${np.status}，出现在 capabilities=${added}，重复=${dup.status}，删除=${del.status}，移除=${gone}`)
+    } catch (e) {
+      add(version, 'L5', 'providers.crud', false, `探测异常: ${String(e && e.message || e)}`)
+    }
+
     // 6. 其余字段不破坏：headers 写回后 models/apiKeyEnv 仍在。
     //    证据优先级：settings.yaml（0.1.0～0.1.5 存储面）→ GET capabilities 回读。
     //    0.1.7 起配置存储迁到 profile patch（settings.yaml 被宿主改名 .imported），
